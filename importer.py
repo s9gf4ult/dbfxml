@@ -4,31 +4,31 @@ import os
 try:
     import ydbf
 except:
-    print "can not load module dbf"
-    exit
+    raise Exception("can not load module dbf")
 
 try:
     import sqlite3
 except:
-    print "can not load module sqlite3"
-    exit
+    raise Exception("can not load module sqlite3")
+
+try:
+    import log
+except:
+    raise Exception("can not load module log")
 
 class importer:
     """importer from dbf to sqlite3"""
     def __init__(self, sqlite_file):
-        if not os.path.exists(sqlite_file):
-            self.sq_connection = sqlite3.connect(sqlite_file)
-            self.sq_connection.execute("create table processed_files (id int primary key not null, full_path varchar not null, processed not null,table_name varchar not null, unique (full_path))")
-        else:
-            print "file %s already exists" % sqlite_file
-            return
+        self.sq_connection = sqlite3.connect(sqlite_file)
+        self.sq_connection.execute("create table processed_files (id int primary key not null, full_path varchar not null, processed not null,table_name varchar not null, unique (full_path))")
 
     def __del__(self):
         self.sq_connection.close()
         
     def addForProcessing(self, file_name, table_name):
+        """add file_name to database for exporting to table_name"""
         if not os.path.exists(file_name):
-            raise("file {0} does not exist".format(file_name))
+            raise Exception("file {0} does not exists".format(file_name))
         mid = self.sq_connection.execute("select max(id) from processed_files").fetchone();
         if mid == (None, ):
             id = 1
@@ -39,20 +39,41 @@ class importer:
         self.sq_connection.commit()
 
     def processTable(self, table_name):
-        if self.sq_connection.execute("select * from processed_file where table_name = '{0}'".format(table_name)).fetchall() == [] :
+        """processes table table_name if any file is assigned to it"""
+        if self.sq_connection.execute("select * from processed_files where table_name = '{0}'".format(table_name)).fetchall() == [] :
             raise("there is no files attached to table {0}".format(table_name))
-        if self.sq_connection.execute("select * from sqlite_master where type = table and name = '{name}'".format(name = table_name)).fetchall() == []:
+        if self.sq_connection.execute("select * from sqlite_master where type = 'table' and name = '{name}'".format(name = table_name)).fetchall() == []:
             #таблицы еще нет в базе - создаем, узнаем типы и имена полей из дбф файлов, проверяем соответствия полей типам 
             files_list = map(lambda a: a[0], self.sq_connection.execute("select full_path from processed_files where table_name = {0} and processed = 0".format(table_name)).fetchall())
             for filename in files_list:
                 dbfcon = ydbf.open(filename, encoding = 'cp866')
                 if not vars().has_key("fields"): # если еще не поеределили переменную
-                    fields = dbfcon.fields       # тут храним имена и типы полей, которые будем создавать
+                    fields = {} # тут храним имена и типы полей, которые будем создавать
+                    for field in dbfcon.fields:
+                        fields[field[0]] = field[1]
+                else: # переменная уже определена, если встретятся поля с другим типом - выбросим исключение
+                    for field in dbfcon.fields:
+                        if fields.has_key(field[0]):
+                            if fields[field[0]] != field[1]:
+                                raise Exception("file {file} has field {field} with type {type1}, another fields in another files has type {type2}".format(file = filename, field = field[0], type1 = field[1], type2 = fields[field[0]]))
+                        else:
+                            fields[field[0]] = field[1]
+            # теперь надо создать таблицу в базе
+            def mapdatatype(a):         # отображение типов из dbf в типы sqlite3
+                if a == 'C':
+                    return "varchar"
+                elif a == 'D':
+                    return "text"
+                elif a == 'N':
+                    return "integer"
+                elif a == 'L':
+                    return "text"
                 else:
-                    for table_field in dbfcon.fields:
-                        same_fields = filter(lambda a: a[0] == table_field[0], fields)
-                        if table_field[1] != [0][1]:
-                            raise "type does not match in table {0} field {1} and file {3} same field".format(table_name, table_field[0], filename)
+                    raise Exception("can not create field with type {0}".format(a))
+                
+            self.sq_connection.execute("create table {table} (id integer primary key not null, {fields})".format(table = table_name,
+                fields = reduce(lambda a, b: "{0}, {1}".format(a, b), map(lambda a:"{0} {1}".format(a, mapdatatype(fields[a])), fields))))
+                                
                     
                   
                   
