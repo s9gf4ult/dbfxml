@@ -135,7 +135,6 @@ class importer:
         assign_id = getIdForTable(self.sq_connection, "file_assigns")
         
         for file_tuple in self.sq_connection.execute("select id, full_path from processed_files where table_name = '{0}' and processed = 0".format(table_name)).fetchall():
-            print file_tuple
             log.log("inserting records from {0}".format(file_tuple[1]))
             for rec in ydbf.open(file_tuple[1], encoding = self.encoding):
                 rec["id"] = table_id
@@ -143,7 +142,18 @@ class importer:
                 insertInto(self.sq_connection, "file_assigns", {"id" : assign_id, "file_id" : file_tuple[0], "table_name" : table_name, "record_id" : table_id})
                 table_id += 1
                 assign_id += 1
-            self.sq_connection("update processed_files set processed = 1 where id = {0}".format(file_tuple[0]))
+            self.sq_connection.execute("update processed_files set processed = 1 where id = {0}".format(file_tuple[0]))
         # все данные внесены
         self.sq_connection.commit()
-            
+
+        
+    def getSqliteConnection(self):
+        return self.sq_connection
+
+    def getUnprocessedTables(self):
+        return map(lambda a: a[0], self.sq_connection.execute("select distinct table_name from processed_files where processed = 0").fetchall())
+    
+    def processAllTables(self):
+        for table in self.getUnprocessedTables():
+            self.processTable(table)
+
