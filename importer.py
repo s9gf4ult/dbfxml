@@ -62,8 +62,9 @@ class importer:
             raise Exception("there is no files attached to table {0}".format(table_name))
         if not isTableAre(self.sq_connection, table_name):
             #таблицы еще нет в базе - создаем, узнаем типы и имена полей из дбф файлов, проверяем соответствия полей типам 
-            files_list = map(lambda a: a[0], self.sq_connection.execute("select full_path from processed_files where table_name = {0} and processed = 0".format(table_name)).fetchall())
+            files_list = map(lambda a: a[0], self.sq_connection.execute("select full_path from processed_files where table_name = '{0}' and processed = 0".format(table_name)).fetchall())
             for filename in files_list:
+                log.log("reading structure of {0}".format(filename))
                 dbfcon = ydbf.open(filename, encoding = 'cp866')
                 if not vars().has_key("fields"): # если еще не поеределили переменную
                     fields = {} # тут храним имена и типы полей, которые будем создавать
@@ -76,6 +77,7 @@ class importer:
                                 raise Exception("file {file} has field {field} with type {type1}, another fields in another files has type {type2}".format(file = filename, field = field[0], type1 = field[1], type2 = fields[field[0]]))
                         else:
                             fields[field[0]] = field[1]
+                dbfcon.close()
             # теперь надо создать таблицу в базе
             def mapdatatype(a):         # отображение типов из dbf в типы sqlite3
                 if a == 'C':
@@ -88,9 +90,12 @@ class importer:
                     return "text"
                 else:
                     raise Exception("can not create field with type {0}".format(a))
-                
-            self.sq_connection.execute("create table {table} (id integer primary key not null, {fields})".format(table = table_name,
-                fields = reduce(lambda a, b: "{0}, {1}".format(a, b), map(lambda a:"{0} {1}".format(a, mapdatatype(fields[a])), fields))))
+
+            for field in fields:
+                fields[field] = mapdatatype(fields[field])
+            makeTableIfNotExists(self.sq_connection, table_name, fields)
+            #self.sq_connection.execute("create table {table} (id integer primary key not null, {fields})".format(table = table_name,
+                #fields = reduce(lambda a, b: "{0}, {1}".format(a, b), map(lambda a:"{0} {1}".format(a, mapdatatype(fields[a])), fields))))
                                 
                     
                   
