@@ -25,17 +25,18 @@ def isTableAre(sq, table_name):
         raise Exception("sq must be sqlite3.Connection class")
     return sq.execute("select * from sqlite_master where type = 'table' and name = '{table}'".format(table = table_name)).fetchall().__len__() == 1
 
-def makeTableIfNotExists(sq, table_name, params_hash, constraint_hash = {}):
+def makeTableIfNotExists(sq, table_name, params_hash, constraints = []):
+    """(sq:sqlite3.Connection, table_name:str, params_hash:dict, constraints:list = []) -> None
+    create table with params, add constraints (as array's elements delimeted by comma) to query"""
+    
     if sq.__class__ != sqlite3.Connection:
         raise Exception("sq must be sqlite3.Connection class")
-    if not isTableAre(sq, table_name):
-        query = "create table {table} (id integer primary key not null, {fields}".format(table = table_name,
-                fields = reduce(lambda a, b:"{0}, {1}".format(a, b),  map(lambda a: "{0} {1}".format(a, params_hash[a]), params_hash)))
-        if constraint_hash != {}:
-            query += ", {0}".format(reduce(lambda a, b:"{0}, {1}".format(a,b),
-                                           map(lambda cn: "{0} ({1})".format(cn, reduce(lambda f1, f2: "{0}, {1}".format(f1, f2), constraint_hash[cn])), constraint_hash)))
-        query += ")"
-        sq.execute(query)
+    query = "create table if not exists {table} (id integer primary key not null, {fields}".format(table = table_name,
+        fields = reduce(lambda a, b:"{0}, {1}".format(a, b),  map(lambda a: "{0} {1}".format(a, params_hash[a]), params_hash)))
+    if constraints != []:
+        query += ", " + reduce(lambda a, b:"{0}, {1}".format(a, b), constraints)
+    query += ")"
+    sq.execute(query)
 
 
 def insertInto(sq, table_name, values):
@@ -71,7 +72,8 @@ class importer:
     def __init__(self, sqlite_file, encoding = 'cp866'):
         self.encoding = encoding
         self.sq_connection = sqlite3.connect(sqlite_file)
-        makeTableIfNotExists(self.sq_connection, "processed_files", {"full_path": "varchar not null", "processed": "integer not null", "table_name" : "varchar not null"}, { "unique": ["full_path"]})
+        makeTableIfNotExists(self.sq_connection, "processed_files", {"full_path": "varchar not null", "processed": "integer not null", "table_name" : "varchar not null"}, ["unique(full_path)"])
+        self.sq_connection.execute("pragma foreign_keys = on")
 
     def __del__(self):
         self.sq_connection.close()
