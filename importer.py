@@ -16,11 +16,29 @@ try:
 except:
     raise Exception("can not load module log")
 
+def isTableAre(sq, table_name):
+    if sq.__class__ != sqlite3.Connection:
+        raise Exception("sq must be sqlite3.Connection class")
+    return sq.execute("select * from sqlite_master where type = 'table' and name = '{table}'".format(table = table_name)).fetchall().__len__() == 1
+
+def makeTableIfNotExists(sq, table_name, params_hash, constraint_hash = {}):
+    if sq.__class__ != sqlite3.Connection:
+        raise Exception("sq must be sqlite3.Connection class")
+    if not isTableAre(sq, table_name):
+        query = "create table {table} (id integer primary key not null, {fields}".format(table = table_name,
+                fields = reduce(lambda a, b:"{0}, {1}".format(a, b),  map(lambda a: "{0} {1}".format(a, params_hash[a]), params_hash)))
+        if constraint_hash != {}:
+            query += ", {0}".format(reduce(lambda a, b:"{0}, {1}".format(a,b),
+                                           map(lambda cn: "{0} ({1})".format(cn, reduce(lambda f1, f2: "{0}, {1}".format(f1, f2), constraint_hash[cn])), constraint_hash)))
+        query += ")"
+        sq.execute(query)
+    
+
 class importer:
     """importer from dbf to sqlite3"""
     def __init__(self, sqlite_file):
         self.sq_connection = sqlite3.connect(sqlite_file)
-        self.sq_connection.execute("create table processed_files (id int primary key not null, full_path varchar not null, processed not null,table_name varchar not null, unique (full_path))")
+        makeTableIfNotExists(self.sq_connection, "processed_files", {"full_path": "varchar not null", "processed": "integer not null", "table_name" : "varchar not null"}, { "unique": ["full_path"]})
 
     def __del__(self):
         self.sq_connection.close()
@@ -41,8 +59,8 @@ class importer:
     def processTable(self, table_name):
         """processes table table_name if any file is assigned to it"""
         if self.sq_connection.execute("select * from processed_files where table_name = '{0}'".format(table_name)).fetchall() == [] :
-            raise("there is no files attached to table {0}".format(table_name))
-        if self.sq_connection.execute("select * from sqlite_master where type = 'table' and name = '{name}'".format(name = table_name)).fetchall() == []:
+            raise Exception("there is no files attached to table {0}".format(table_name))
+        if not isTableAre(self.sq_connection, table_name):
             #таблицы еще нет в базе - создаем, узнаем типы и имена полей из дбф файлов, проверяем соответствия полей типам 
             files_list = map(lambda a: a[0], self.sq_connection.execute("select full_path from processed_files where table_name = {0} and processed = 0".format(table_name)).fetchall())
             for filename in files_list:
