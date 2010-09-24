@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<root tag=PHARMACYRECIPE_DOC>
+  <records>
+    <record>
+      <tag>PHARMACYRECIPE</tag>
+      <defaults>
+        <props>op=i</props>
+      </defaults>
+      <fields>
+        <field name=DATE_VR type=date>
+          <result type=tag>
+            <name>DATE_VR</name>
+            <value>
+              <transform type=format>
+                <type>dateformat</type>
+                <formatstr>yyyy-mm-dd"T"hh:nn:ss</formatstr>
+              </transform>
+            </value>
+          </result>
+        </field>
+        <field name=C_OGRN type=string>
+          <result type=tag>
+            <name>C_OGRN</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=MCOD type=string>
+          <result type=tag>
+            <name>MCOD</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=PCOD type=string>
+          <result type=tag>
+            <name>V_C_OGRN</name>
+            <value>
+              <transform type=substring>
+                <type>left</type>
+                <length>13</length>
+              </transform>
+            </value>
+          </result>
+          <result type=tag>
+            <name>PCOD</name>
+            <value>
+              <transform type=substring>
+                <type>right</type>
+                <length>-13</length>
+              </transform>
+            </value>
+          </result>
+        </field>
+        <field name=SS type=string>
+          <result type=tag>
+            <name>SS</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=DS type=string>
+          <result type=tag>
+            <name>DS</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=SN_LR type=string>
+          <result type=tag>
+            <name>S_LR</name>
+            <value>
+              <transform type=subword>
+                <type>left</type>
+                <delim pos=last> </delim>
+              </transform>
+            </value>
+          </result>
+          <result type=tag>
+            <name>N_LR</name>
+            <value>
+              <transform type=subword>
+                <type>right</type>
+                <delim pos=1> </delim>
+              </transform>
+            </value>
+          </result>
+        </field>
+        <field name=C_FINL type=string>
+          <result type=tag>
+            <name>C_FINL</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=PR_LR type=integer>
+          <result type=tag>
+            <name>PR_LR</name>
+            <value>
+              <transform type=range>
+                <range from=0 to=50>2</range>
+                <range from=51 to=100>1</range>
+              </transform>
+            </value>
+          </result>
+        </field>
+        <field name=DATE_OTP type=date>
+          <result type=tag>
+            <name>DATE_OTP</name>
+            <value>
+              <transform type=format>
+                <type>dateformat</type>
+                <formatstr>yyyy-mm-dd"T"hh:nn:ss</formatstr>
+              </transform>
+            </value>
+          </result>
+        </field>
+        <field name=KO_ALL type=double>
+          <result type=tag>
+            <name>KO_ALL</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=P_KEK type=integer>
+          <result type=tag>
+            <name>P_KEK</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+          <result type=tag>
+            <name>Delayed_Service</name>
+            <value>
+              <transform type=const>0</transform>
+            </value>
+          </result>
+        </field>
+        <field name=A_COD type=string>
+          <result type=tag>
+            <name>P_OGRN</name>
+            <value>
+              <transform type=substring>
+                <type>left</type>
+                <length>13</length>
+              </transform>
+            </value>
+          </result>
+          <result type=tag>
+            <name>A_COD</name>
+            <value>
+              <transform type=substring>
+                <type>right</type>
+                <length>-13</length>
+              </transform>
+            </value>
+          </result>
+        </field>
+        <field name=C_KAT type=string>
+          <result type=tag>
+            <name>C_KAT</name>
+            <value default=0>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=C_KATL type=string>
+          <result type=tag>
+            <name>C_KATL</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=C_PFS type=integer>
+          <result type=tag>
+            <name>C_PFS</name>
+            <value default=0>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=NOMK_LS type=integer>
+          <result type=tag>
+            <name>NOMK_LS</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=D_TYPE type=string>
+          <result type=tag>
+            <name>DATE_BP</name>
+            <value>
+              <transform type=const>1900-01-01</transform>
+            </value>	
+          </result>
+          <result type=tag>
+            <name>D_TYPE</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+          <result type=tag>
+            <name>RecipeGUID</name>
+            <value>
+              <transform type=generator>
+                <type>GUID</type>
+              </transform>
+            </value>
+          </result>
+          <result type=tag>
+            <name>NumExport</name>
+            <value>
+              <transform type=const>0</transform>
+            </value>
+          </result>
+        </field>
+        <field name=DATE_OBR type=date>		
+          <result type=tag>
+            <name>DATE_OBR</name>
+            <value>
+              <transform type=format>
+                <type>dateformat</type>
+                <formatstr>yyyy-mm-dd"T"hh:nn:ss</formatstr>
+              </transform>
+            </value>
+          </result>
+        </field>
+        <field name=DOZ_ME type=integer>
+          <result type=tag>
+            <name>DOZ_ME</name>
+            <value default=0>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=SL_ALL type=double>
+          <result type=tag>
+            <name>SL_ALL</name>
+            <value default=0>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=TYPE_SCHET type=integer>
+          <result type=tag>
+            <name>TYPE_SCHET</name>
+            <value default=0>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=FO_OGRN type=string>
+          <result type=tag>
+            <name>FO_OGRN</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+
+      </fields>
+    </record>
+  </records>
+</root>

@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<root tag=PERSONDLO_DOC>
+  <records>
+    <record>
+      <tag>PERSONDLO</tag>
+      <defaults>
+        <result type=property>
+          <name>op</name>
+          <value>I</value>
+        </result>
+      </defaults>
+      <fields>
+        <field name=SS type=string>
+          <result type=tag>
+            <name>SS</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=SN_POL type=string>
+          <result type=tag>
+            <name>S_POL</name>
+            <value>
+              <transform type=subword>
+                <type>left</type>
+                <delim pos=last> </delim>
+              </transform>
+            </value>
+          </result>
+          <result type=tag>
+            <name>N_POL</name>
+            <value>
+              <transform type=subword>
+                <type>right</type>
+                <delim pos=1> </delim>
+              </transform>
+            </value>
+          </result>
+        </field>
+        <field name=FAM type=string>
+          <result type=tag>
+            <name>FAM</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=IM type=string>
+          <result type=tag>
+            <name>IM</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=OT type=string>
+          <result type=tag>
+            <name>OT</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=W type=string>
+          <result type=tag>
+            <name>W</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=DR type=string>
+          <result type=tag>
+            <name>DR</name>
+            <value>
+              <transform type=replace>
+                <old>/</old>
+                <new>-</new>
+              </transform>
+            </value>
+          </result>
+        </field>
+        <field name=C_KAT type=string>
+          <result type=tag>
+            <name>C_KAT</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=SN_DOC type=string>
+          <result type=tag>
+            <name>S_DOC</name>
+            <value default=NS>
+              <transform type=subword>
+                <type>left</type>
+                <delim pos=last> </delim>
+              </transform>
+            </value>
+          </result>
+          <result type=tag>
+            <name>N_DOC</name>
+            <value default=00000000>
+              <transform type=subword greed=1>
+                <type>right</type>
+                <delim pos=1> </delim>
+              </transform>
+            </value>
+          </result>
+        </field>
+        <field name=C_DOC type=integer>
+          <result type=tag>
+            <name>C_DOC</name>
+            <value default=0>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=OKATO_OMS type=integer>
+          <result type=tag>
+            <name>OKATO_OMS</name>
+            <value default=0>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=QM_OGRN type=string>
+          <result type=tag>
+            <name>QM_OGRN</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=OKATO_REG type=integer>
+          <result type=tag>
+            <name>OKATO_REG</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        <field name=D_TYPE type=string>
+          <result type=tag>
+            <name>D_TYPE</name>
+            <value>
+              <transform type=none></transform>
+            </value>
+          </result>
+        </field>
+        
+
+      </fields>
+    </record>
+  </records>
+</root>
