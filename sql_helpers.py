@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import sqlite3
-import datetime
 
 def isTableAre(sq, table_name):
     if sq.__class__ != sqlite3.Connection:
@@ -44,14 +43,22 @@ def getIdForTable(sq, table_name):
         return st[0] + 1
 
 
-class hashRetrunter:
+class selectHashIterator:
     def __init__(self, cur):
         if cur.__class__ != sqlite3.Cursor:
             raise Exception("cur must be sqlite3.Cursor instance")
         self.cur = cur
-        self.fields = cur.description
+        self.fields = map(lambda a: a[0], cur.description)
 
     def __iter__(self):
         return self
+
+    def next(self):
+        ret = {}
+        vals = self.cur.next()
+        for index in range(0, self.fields.__len__()):
+            ret[self.fields[index]] = vals[index]
+        return ret
+    
     
         

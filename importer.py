@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import re
 import datetime
 import sys
 reload(sys)                             # круто да ?
@@ -11,15 +12,20 @@ import log
 import find_files
 import sql_helpers
 
-
     
 class importer:
     """importer from dbf to sqlite3"""
     def __init__(self, sqlite_file, encoding = 'cp866'):
         self.encoding = encoding
-        self.sq_connection = sqlite3.connect(sqlite_file)
+        self.sq_connection = sqlite3.connect(sqlite_file, detect_types = sqlite3.PARSE_DECLTYPES)
         sql_helpers.makeTableIfNotExists(self.sq_connection, "processed_files", {"full_path": "varchar not null", "processed": "integer not null", "table_name" : "varchar not null"}, ["unique(full_path)"])
         self.sq_connection.execute("pragma foreign_keys = on")
+        def datetimeconvert(date):      # эти пять строк добавили поддержку даты в скулайт
+            return datetime.datetime(*map(int, re.split("[-T:\.]", date)))
+        sqlite3.register_adapter(datetime.datetime, datetime.datetime.isoformat)
+        sqlite3.register_adapter(datetime.date, datetime.date.isoformat)
+        sqlite3.register_converter('date', datetimeconvert)
+        
 
     def __del__(self):
         self.sq_connection.close()
@@ -61,7 +67,7 @@ class importer:
                 if a == 'C':
                     return "text"
                 elif a == 'D':
-                    return "text"
+                    return "date"
                 elif a == 'N':
                     return "integer"
                 elif a == 'L':
