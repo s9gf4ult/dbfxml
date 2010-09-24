@@ -1,4 +1,7 @@
+# -*- coding: utf-8 -*-
+
 import sqlite3
+import datetime
 
 def isTableAre(sq, table_name):
     if sq.__class__ != sqlite3.Connection:
@@ -27,18 +30,11 @@ def insertInto(sq, table_name, values):
         if values[key] != None:
             keys.append(key)
         
-    def formatval(a):
-        if a.__class__ == str or a.__class__ == unicode:
-            return "'{0}'".format(a)
-        elif a.__class__ == datetime.date:
-            return "'{0:04}-{1:02}-{2:02}'".format(a.year, a.month, a.day)
-        else:
-            return a
-        
-    query = "insert into {name}({keys}) values ({values})".format(name = table_name,
+    query = "insert into {name}({keys}) values ({values})".format(
+        name = table_name,
         keys = reduce(lambda a, b:"{0}, {1}".format(a, b), keys),
-        values = reduce(lambda a, b:"{0}, {1}".format(a,b), map(lambda a:formatval(values[a]), keys)))
-    sq.execute(query)
+        values = reduce(lambda a, b:"{0}, {1}".format(a,b), map(lambda a:"?" , keys))) # на самом деле тут мы возвращаем много много вопросиков разделенных запятыми
+    sq.execute(query, map(lambda a: values[a], keys)) # а вот сдесь собсно значения
 
 def getIdForTable(sq, table_name):
     st = sq.execute("select max(id) from {0}".format(table_name)).fetchone()
@@ -46,3 +42,16 @@ def getIdForTable(sq, table_name):
         return 1
     else:
         return st[0] + 1
+
+
+class hashRetrunter:
+    def __init__(self, cur):
+        if cur.__class__ != sqlite3.Cursor:
+            raise Exception("cur must be sqlite3.Cursor instance")
+        self.cur = cur
+        self.fields = cur.description
+
+    def __iter__(self):
+        return self
+    
+        
