@@ -2,6 +2,7 @@
 import os
 import re
 import datetime
+import decimal
 import sys
 reload(sys)                             # круто да ?
 sys.setdefaultencoding('utf-8')         # а вот зачем это было нужно
@@ -20,11 +21,19 @@ class importer:
         self.sq_connection = sqlite3.connect(sqlite_file, detect_types = sqlite3.PARSE_DECLTYPES)
         sql_helpers.makeTableIfNotExists(self.sq_connection, "processed_files", {"full_path": "varchar not null", "processed": "integer not null", "table_name" : "varchar not null"}, ["unique(full_path)"])
         self.sq_connection.execute("pragma foreign_keys = on")
-        def datetimeconvert(date):      # эти пять строк добавили поддержку даты в скулайт
+        # register wrappers for dbf compatible types
+        def datetimeconvert(date):
             return datetime.datetime(*map(int, re.split("[-T:\.]", date)))
+        def dateconvert(date):
+            return datetime.date(*map(int, re.split("[-T:\.]", date)))
         sqlite3.register_adapter(datetime.datetime, datetime.datetime.isoformat)
         sqlite3.register_adapter(datetime.date, datetime.date.isoformat)
-        sqlite3.register_converter('date', datetimeconvert)
+        sqlite3.register_converter('datetime', datetimeconvert)
+        sqlite3.register_converter('date', dateconvert)
+        sqlite3.register_adapter(decimal.Decimal, decimal.Decimal.__str__)
+        sqlite3.register_converter('decimal', lambda a: decimal.Decimal(a))
+        sqlite3.register_converter('bool', lambda a: a == 1)
+        sqlite3.register_adapter(bool, lambda a: a and 1 or 0)
         
 
     def __del__(self):
@@ -53,25 +62,27 @@ class importer:
                 if not vars().has_key("fields"): # если еще не поеределили переменную
                     fields = {} # тут храним имена и типы полей, которые будем создавать
                     for field in dbfcon.fields:
-                        fields[field[0]] = field[1]
+                        fields[field[0]] = [field[1], field[3]]
                 else: # переменная уже определена, если встретятся поля с другим типом - выбросим исключение
                     for field in dbfcon.fields:
                         if fields.has_key(field[0]):
-                            if fields[field[0]] != field[1]:
+                            if fields[field[0]] != [field[1], field[3]]:
                                 raise Exception("file {file} has field {field} with type {type1}, another fields in another files has type {type2}".format(file = filename, field = field[0], type1 = field[1], type2 = fields[field[0]]))
                         else:
-                            fields[field[0]] = field[1]
+                            fields[field[0]] = [field[1], field[3]]
                 dbfcon.close()
             # теперь надо создать таблицу в базе
             def mapdatatype(a):         # отображение типов из dbf в типы sqlite3
-                if a == 'C':
+                if a[0] == 'C':
                     return "text"
-                elif a == 'D':
+                elif a[0] == 'D':
                     return "date"
-                elif a == 'N':
+                elif a[0] == 'N' and a[1]:
+                    return "decimal"
+                elif a[0] == 'N' and not a[1]:
                     return "integer"
                 elif a == 'L':
-                    return "text"
+                    return "bool"
                 else:
                     raise Exception("can not create field with type {0}".format(a))
 
@@ -87,6 +98,12 @@ class importer:
             for file_tuple in self.sq_connection.execute("select id, full_path from processed_files where table_name = '{0}' and processed = 0".format(table_name)).fetchall():
                 log.log("inserting records from {0}".format(file_tuple[1]))
                 for rec in ydbf.open(file_tuple[1], encoding = self.encoding):
+                    for rkey in rec:    # ydbf returns strange values
+                        if rec[rkey].__class__ == int:
+                            rec[rkey] = decimal.Decimal(rec[rkey])
+                        elif rec[rkey].__class__ == float:
+                            rec[rkey] = decimal.Decimal(rec[rkey].__str__())
+                        
                     rec["id"] = table_id
                     sql_helpers.insertInto(self.sq_connection, table_name, rec)
                     sql_helpers.insertInto(self.sq_connection, "file_assigns", {"id" : assign_id, "file_id" : file_tuple[0], "record_id" : table_id})

@@ -33,7 +33,13 @@ def insertInto(sq, table_name, values):
         name = table_name,
         keys = reduce(lambda a, b:"{0}, {1}".format(a, b), keys),
         values = reduce(lambda a, b:"{0}, {1}".format(a,b), map(lambda a:"?" , keys))) # на самом деле тут мы возвращаем много много вопросиков разделенных запятыми
-    sq.execute(query, map(lambda a: values[a], keys)) # а вот сдесь собсно значения
+    try:
+        sq.execute(query, map(lambda a: values[a], keys)) # а вот сдесь собсно значения
+    except:
+        raise Exception("""It seems that one of values gived in hash has unsupported type
+        it probably has no adapter in sqlite.
+        Here is all keys that gived into
+        {0}""".format(reduce(lambda a, b:"{0}\n{1}".format(a,b), map(lambda a:"key:{0}, value:{1}, class{2}".format(a, values[a], values[a].__class__), keys))))
 
 def getIdForTable(sq, table_name):
     st = sq.execute("select max(id) from {0}".format(table_name)).fetchone()
