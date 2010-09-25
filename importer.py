@@ -45,9 +45,12 @@ class importer:
             raise Exception("file {0} does not exists".format(file_name))
         id = sql_helpers.getIdForTable(self.sq_connection, "processed_files")
         try:
-            self.sq_connection.execute("insert into processed_files(id, full_path, processed, table_name)  values ({0}, '{1}', {2}, '{3}')".format(id, os.path.realpath(file_name), 0, table_name))
+            self.sq_connection.execute("insert into processed_files(id, full_path, processed, table_name)  values (?,?,?,?)", (id, os.path.realpath(file_name), 0, table_name))
         except:
-            log.log("file {0} did not added for processing (posibly already aded)".firmat(file_name))
+            if self.sq_connection.execute("select * from processed_files where full_path = ?", (os.path.realpath(file_name),)).fetchall() != []:
+                log.log("file {0} did not added for processing (already aded)".format(file_name))
+            else:
+                raise
         else:
             self.sq_connection.commit()
             log.log("file {0} added".format(file_name))

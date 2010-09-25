@@ -4,6 +4,8 @@ from common_helpers import *
 import sql_helpers
 import importer
 import datetime
+import re
+import uuid
 
 class transformer:
     """common interface for conversion tables"""
@@ -63,3 +65,57 @@ class transformer:
                 if not tf.lower() in fields:
                     raise Exception("table {0}, has no field {1}".format(self.src, tf))
 
+def datetimeIsoFormat(ddt):
+    if ddt.__class__ == datetime.date:
+        return datetime.datetime(ddt.year, ddt.month, ddt.day).isoformat()
+    elif ddt.__class__ == datetime.datetime:
+        return ddt.isoformat()
+    elif ddt.__class__ == str or ddt.__class__ == unicode:
+        return datetime.datetime(*map(int, re.split("[-T:\.\/\\]", ddt))).isoformat()
+    elif ddt == None:
+        return None
+    else:
+        raise Exception("Date in some strange format {0}".format(ddt.__class__))
+    
+
+class rcptransformer(transformer):
+    def convertHash(self, hinst):
+        ret = {}
+        hin = {}
+        for key in hinst:
+            hin[key.upper()] = hinst[key]
+        for key in ['C_OGRN', 'MCOD', 'SS', 'DS', 'C_FINL', 'KO_ALL', 'P_KEK', 'C_KAT', 'C_KATL', 'C_PFS', 'NOMK_LS', 'D_TYPE', 'DOZ_ME', 'SL_ALL', 'TYPE_SCHET', 'FO_OGRN']:
+            ret[key] = hin[key] and hin[key].__str__()
+                
+        for key in ['C_KAT', 'C_PFS', 'DOZ_ME', 'SL_ALL', 'TYPE_SCHET']:
+            if (not ret[key]) or ret[key] == '':
+                ret[key] = '0'
+        ret['DATE_VR'] = datetimeIsoFormat(hin['DATE_VR'])
+        pcod = hin['PCOD'].__str__()
+        ret['V_C_OGRN'] = pcod[0:13]
+        ret['PCOD'] = pcod[13:pcod.__len__()]
+        snlr = filter(lambda a: a != '', re.split('\ +', hin['SN_LR'].__str__()))
+        ret['S_LR'] = snlr[0]
+        ret['N_LR'] = snlr[-1]
+        #PR_LR action range !
+        prlr = int(hin['PR_LR'])
+        ret['PR_LR'] = (0 <= prlr <= 50) and '2' or '1' # доподлинно неизвестно так ли это 
+        ret['DATE_OTP'] = datetimeIsoFormat(hin['DATE_OTP'])
+        ret['Delayed_Service'] = '0'
+        acod = hin['A_COD'].__str__()
+        ret['P_OGRN'] = acod[0:13]
+        ret['A_COD'] = acod[13: acod.__len__()]
+        ret['DATE_BP'] = '1900-01-01'
+        ret['RecipeGUID'] = uuid.uuid1().__str__().upper()
+        ret['NumExport'] = '0'
+        ret['DATE_OBR'] = datetimeIsoFormat(hin['DATE_OBR'])
+        return ret
+
+class perstransform(transformer):
+    def convertHash(self, hinst):
+        ret = {}
+        hin = {}
+        for key in hinst:
+            hin[key.upper()] = hinst[key]
+
+        return ret
