@@ -98,12 +98,6 @@ class importer:
             for file_tuple in self.sq_connection.execute("select id, full_path from processed_files where table_name = '{0}' and processed = 0".format(table_name)).fetchall():
                 log.log("inserting records from {0}".format(file_tuple[1]))
                 for rec in ydbf.open(file_tuple[1], encoding = self.encoding):
-                    for rkey in rec:    # ydbf returns strange values
-                        if rec[rkey].__class__ == int:
-                            rec[rkey] = decimal.Decimal(rec[rkey])
-                        elif rec[rkey].__class__ == float:
-                            rec[rkey] = decimal.Decimal(rec[rkey].__str__())
-                        
                     rec["id"] = table_id
                     sql_helpers.insertInto(self.sq_connection, table_name, rec)
                     sql_helpers.insertInto(self.sq_connection, "file_assigns", {"id" : assign_id, "file_id" : file_tuple[0], "record_id" : table_id})
