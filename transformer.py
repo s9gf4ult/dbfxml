@@ -25,7 +25,7 @@ class transformer:
             fields[key] = "varchar"
         fields["ref_id"] = "integer"
             
-        sql_helpers.makeTableIfNotExists(self.sq_connection, self.dst, fields, ["foreign key (ref_id) references {0}(id) on delete cascade".format(self.src)])
+        sql_helpers.makeTableIfNotExists(self.sq_connection, self.dst, fields, ["foreign key (ref_id) references {0}(id) on delete cascade".format(self.src), "unique(ref_id)"])
     
     def convertTable(self):
         self._checkForNecessaryFields()
@@ -37,7 +37,12 @@ class transformer:
             
         try:
             for rec in sql_helpers.selectHashIterator(self.sq_connection.execute("select * from {0}".format(self.src))):
-                sql_helpers.insertInto(self.sq_connection, self.dst, self._processAndAddIDReferences(dst_id, rec))
+                try:
+                    sql_helpers.insertInto(self.sq_connection, self.dst, self._processAndAddIDReferences(dst_id, rec))
+                except:
+                    self.sq_connection.execute("delete from {0} where id = ?".format(self.dst), dst_id)
+                    sql_helpers.insertInto(self.sq_connection, self.dst, self._processAndAddIDReferences(dst_id, rec))
+                    
                 dst_id += 1
         except:
             self.sq_connection.rollback()
