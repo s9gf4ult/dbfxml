@@ -40,7 +40,7 @@ class transformer:
                 try:
                     sql_helpers.insertInto(self.sq_connection, self.dst, self._processAndAddIDReferences(dst_id, rec))
                 except:
-                    self.sq_connection.execute("delete from {0} where id = ?".format(self.dst), dst_id)
+                    self.sq_connection.execute("delete from {0} where ref_id = ?".format(self.dst), rec["id"])
                     sql_helpers.insertInto(self.sq_connection, self.dst, self._processAndAddIDReferences(dst_id, rec))
                     
                 dst_id += 1
