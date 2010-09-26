@@ -42,7 +42,7 @@ class transformer:
                 try:
                     sql_helpers.insertInto(self.sq_connection, self.dst, self._processAndAddIDReferences(dst_id, rec))
                 except:
-                    self.sq_connection.execute("delete from {0} where ref_id = ?".format(self.dst), rec["id"])
+                    self.sq_connection.execute("delete from {0} where ref_id = ?".format(self.dst), (rec["id"],))
                     sql_helpers.insertInto(self.sq_connection, self.dst, self._processAndAddIDReferences(dst_id, rec))
                     
                 dst_id += 1
@@ -71,12 +71,20 @@ def datetimeIsoFormat(ddt):
     elif ddt.__class__ == datetime.datetime:
         return ddt.isoformat()
     elif ddt.__class__ == str or ddt.__class__ == unicode:
-        return datetime.datetime(*map(int, re.split("[-T:\.\/\\]", ddt))).isoformat()
+        return datetime.datetime(*map(int, re.split("[-T:\.\/\\]+", ddt))).isoformat()
     elif ddt == None:
         return None
     else:
         raise Exception("Date in some strange format {0}".format(ddt.__class__))
-    
+
+
+def setDefault(deflt, val = None):
+    if val.__class__ == str or val.__class__ == unicode:
+        return (not re.match('^\ *$', val)) and val or deflt
+    return val and val.__str__() or deflt
+
+def splitWords(string):
+    return string and filter(lambda a: a != '', re.split('\ +', string.__str__()))
 
 class rcptransformer(transformer):
     def convertHash(self, hinst):
@@ -85,18 +93,17 @@ class rcptransformer(transformer):
         for key in hinst:
             hin[key.upper()] = hinst[key]
         for key in ['C_OGRN', 'MCOD', 'SS', 'DS', 'C_FINL', 'KO_ALL', 'P_KEK', 'C_KAT', 'C_KATL', 'C_PFS', 'NOMK_LS', 'D_TYPE', 'DOZ_ME', 'SL_ALL', 'TYPE_SCHET', 'FO_OGRN']:
-            ret[key] = hin[key] and hin[key].__str__()
+            ret[key] = hin.has_key(key) and  hin[key] and hin[key].__str__()
                 
         for key in ['C_KAT', 'C_PFS', 'DOZ_ME', 'SL_ALL', 'TYPE_SCHET']:
-            if (not ret[key]) or ret[key] == '':
-                ret[key] = '0'
+            ret[key] = setDefault('0', ret[key])
         ret['DATE_VR'] = datetimeIsoFormat(hin['DATE_VR'])
         pcod = hin['PCOD'].__str__()
         ret['V_C_OGRN'] = pcod[0:13]
         ret['PCOD'] = pcod[13:pcod.__len__()]
-        snlr = filter(lambda a: a != '', re.split('\ +', hin['SN_LR'].__str__()))
-        ret['S_LR'] = snlr[0]
-        ret['N_LR'] = snlr[-1]
+        snlr = splitWords(hin['SN_LR'])
+        ret['S_LR'] = snlr and snlr.__len__() >= 1 and snlr[0]
+        ret['N_LR'] = snlr and snlr.__len__() >= 1 and snlr[-1]
         #PR_LR action range !
         prlr = int(hin['PR_LR'])
         ret['PR_LR'] = (0 <= prlr <= 50) and '2' or '1' # доподлинно неизвестно так ли это 
@@ -117,5 +124,17 @@ class perstransform(transformer):
         hin = {}
         for key in hinst:
             hin[key.upper()] = hinst[key]
+        for key in ['SS', 'FAM', 'IM', 'OT', 'W', 'C_KAT', 'C_DOC', 'OKATO_OMS', 'QM_OGRN', 'OKATO_REG', 'D_TYPE']:
+            ret[key] = hin.has_key(key) and  hin[key] and hin[key].__str__()
 
+        for key in ['C_DOC', 'OKATO_OMS']:
+            ret[key] = setDefault('0', ret[key])
+
+        snpol = splitWords(hin['SN_POL'])
+        ret['S_POL'] = snpol and snpol.__len__() >= 1 and snpol[0]
+        ret['N_POL'] = snpol and snpol.__len__() >= 1 and snpol[-1]
+        ret['DR'] = hin['DR'] and hin['DR'].__str__().replace('/', '-')
+        sndoc = splitWords(hin['SN_DOC'])
+        ret['S_DOC'] = setDefault('NS', sndoc and sndoc.__len__() >= 1 and sndoc[0])
+        ret['N_DOC'] = setDefault('00000000', sndoc and sndoc.__len__() >= 1 and sndoc[1])
         return ret
