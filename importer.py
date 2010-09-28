@@ -34,6 +34,7 @@ class importer:
         sqlite3.register_converter('decimal', lambda a: decimal.Decimal(a))
         sqlite3.register_converter('bool', lambda a: a == 1)
         sqlite3.register_adapter(bool, lambda a: a and 1 or 0)
+        sqlite3.register_adapter(str, lambda a:a.decode())
         
 
     def __del__(self):

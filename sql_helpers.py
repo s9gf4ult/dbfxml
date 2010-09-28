@@ -27,8 +27,6 @@ def insertInto(sq, table_name, values):
     for key in values:
         if values[key]:
             keys.append(key)
-            if values[key].__class__ == str:
-                values[key] = values[key].decode('utf-8')
         
     query = "insert into {name}({keys}) values ({values})".format(
         name = table_name,
