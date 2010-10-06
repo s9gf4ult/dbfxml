@@ -18,6 +18,10 @@ class xmltemplate:
         self.xml = etree.parse(filename).getroot()
         self.sources = []
 
+    def insertXmlTable(self, xmltable):
+        declare_type(xml_table.xmlmk, xmltable)
+    
+
     def store(self, filename, encoding = 'utf-8'):
         with open(filename, 'w') as fout:
             fout.write(etree.tostring(self.xml, pretty_print = True, encoding = encoding, xml_declaration = True))
@@ -33,7 +37,7 @@ class rcpcontainer(xmltemplate):
             del self.xml.find('DATAMAIN')[-1] # по удаляем все из дерева чигабуга
         
     def insertXmlTable(self, xmltable):
-        declare_type(xml_table.xmlmk, xmltable)
+        xmltemplate.insertXmlTable(self, xmltable)
         self.xml.find('DATAMAIN').append(xmltable)
         
         

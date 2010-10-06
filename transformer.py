@@ -113,7 +113,7 @@ class rcptransformer(transformer):
         ret['P_OGRN'] = acod[0:13]
         ret['A_COD'] = acod[13: acod.__len__()]
         ret['DATE_BP'] = '1900-01-01'
-        ret['RecipeGUID'] = uuid.uuid1().__str__().upper()
+        ret['RecipeGUID'] = u'{{{0}}}'.format(uuid.uuid1().__str__().upper())
         ret['NumExport'] = '0'
         ret['DATE_OBR'] = datetimeIsoFormat(hin['DATE_OBR'])
         return ret
