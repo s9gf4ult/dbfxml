@@ -5,24 +5,36 @@ from common_helpers import *
 import sql_helpers
 import transformer
 
-def makeXmlmk(trans):
-    ret = xmlmk()
+def mapTransformerToContainer(trans):
+    classes = {transformer.perstransform:personsxml,
+               transformer.rcptransformer:prescxml
+               }
+    return classes[trans]
+    
+
+def makeXmlmk(trans, classtype = None):
+    if classtype == None:
+        classtype = mapTransformerToContainer(trans.__class__)
+    ret = classtype()
     ret._local_init(trans)
     ret.fetchTable()
     return ret
 
 class xmlIterator:
-    def __init__(self, trans, max_count = 100000):
+    def __init__(self, trans, classtype = None, max_count = 100000):
+        if classtype == None:
+            classtype = mapTransformerToContainer(trans.__class__)
         declare_type(transformer.transformer, trans)
         self.transformer = trans
         self.max_count = max_count
+        self.xmlmk_class = classtype
 
     def __iter__(self):
         self.cursor = self.transformer.sq_connection.execute("select * from {0}".format(self.transformer.dst))
         return self
 
     def next(self):
-        ret = xmlmk()
+        ret = self.xmlmk_class()
         ret._local_init(self.transformer)
         iterator = sql_helpers.selectHashIterator(self.cursor).__iter__()
         got = 0
@@ -53,5 +65,15 @@ class xmlmk(etree.ElementBase):
         for field in rec:
             if field.lower() != 'id' and field.lower() != 'ref_id' and isinstance(rec[field], basestring):
                 etree.SubElement(record, field).text = rec[field]
-            self.append(record)
+                self.append(record)
+        return record
             
+class personsxml(xmlmk):
+    def insertRecord(self, rec, name = 'PERSONDLO'):
+        rec = xmlmk.insertRecord(self, rec, name = name)
+        rec.attrib['op'] = 'I'
+
+class prescxml(xmlmk):
+    def insertRecord(self, rec, name = 'PHARMACYRECIPE'):
+        xmlmk.insertRecord(self, rec, name = name)
+    
