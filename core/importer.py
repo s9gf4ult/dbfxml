@@ -10,7 +10,6 @@ sys.setdefaultencoding('utf-8')         # а вот зачем это было �
 import ydbf
 import sqlite3
 import log
-import find_files
 import sql_helpers
 
     
@@ -132,7 +131,7 @@ class importer:
             self.processTable(table)
 
     def addForProcessingByPattern(self, table_name, directory, pattern = '.*' , flags = 0):
-        files = find_files.findFilesByRegexp(directory, pattern, flags)
+        files = findFilesByRegexp(directory, pattern, flags)
         if files != []:
             for file in files:
                 self.addForProcessing(file, table_name)
