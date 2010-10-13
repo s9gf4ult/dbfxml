@@ -20,21 +20,6 @@ class importer:
         self.sq_connection = sqlite3.connect(sqlite_file, detect_types = sqlite3.PARSE_DECLTYPES)
         sql_helpers.makeTableIfNotExists(self.sq_connection, "processed_files", {"full_path": "varchar not null", "processed": "integer not null", "table_name" : "varchar not null"}, ["unique(full_path)"])
         self.sq_connection.execute("pragma foreign_keys = on")
-        # register wrappers for dbf compatible types
-        def datetimeconvert(date):
-            return datetime.datetime(*map(int, re.split("[-T:\.]", date)))
-        def dateconvert(date):
-            return datetime.date(*map(int, re.split("[-T:\.]", date)))
-        sqlite3.register_adapter(datetime.datetime, datetime.datetime.isoformat)
-        sqlite3.register_adapter(datetime.date, datetime.date.isoformat)
-        sqlite3.register_converter('datetime', datetimeconvert)
-        sqlite3.register_converter('date', dateconvert)
-        sqlite3.register_adapter(decimal.Decimal, decimal.Decimal.__str__)
-        sqlite3.register_converter('decimal', lambda a: decimal.Decimal(a))
-        sqlite3.register_converter('bool', lambda a: a == 1)
-        sqlite3.register_adapter(bool, lambda a: a and 1 or 0)
-        sqlite3.register_adapter(str, lambda a:a.decode())
-        
 
     def __del__(self):
         self.sq_connection.close()
