@@ -1,12 +1,20 @@
 # -*- coding: utf-8 -*-
 
-__all__ = ["common_helpers",
-           "importer",
-           "transformer"]
-          
-           
+__all__ = [
+    ]
 
-def initcore(logfun = lambda a: print(a)):
+import sqlite3
+import datetime
+import decimal
+
+logger = None
+
+def defaultlog(a):
+    print(a)
+          
+def initcore(logfun = defaultlog):
+    global logger
+    logger = logfun
     import sys
     reload(sys)
     sys.setdefaultencoding('utf-8')
