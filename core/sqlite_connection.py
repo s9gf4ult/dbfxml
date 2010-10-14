@@ -3,6 +3,10 @@
 import sqlite3
 from common_helpers import *
 
+class sqliteConnection(sqlite3.Connection):
+    def __init__(self, initstr):
+        sqlite3.Connection(self, initstr)
+    
 
 def isTableAre(sq, table_name):
     declare_type(sqlite3.Connection, sq)
