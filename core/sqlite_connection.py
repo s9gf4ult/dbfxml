@@ -6,6 +6,53 @@ from common_helpers import *
 class sqliteConnection(sqlite3.Connection):
     def __init__(self, initstr):
         sqlite3.Connection(self, initstr)
+        self.execute('pragma foreign_keys = on')
+        self.checkMetadata()
+
+    def checkMetadata(self):
+        self.createTableIfNotExists('meta$tables', {'name':'varchar not null',
+                                                    'type':'varchar not null',
+                                                    'comment':'text'},
+                                    constraints = 'unique (name)')
+        self.createTableIfNotExists('meta$fields', {'table_name':'varchar not null',
+                                                    'field_name':'varchar not null',
+                                                    'type':'varchar not null',
+                                                    'comment':'text'}
+                                    constraints = 'unique(table_name, field_name)')
+        if  self.execute("select t.* from meta$tables t where not exists (select t2.* from sqlite_master t2 where t2.type = 'table' and t2.name = t1.name)").fetchall() != []:
+            raise Exception('there is some tables in "meta$tables" which does not exists')
+        for table_name in self.execute("select t.name from meta$tables t"):
+            fields = self.execute(u'select t.field_name from meta$fields t where t.table_name = ?', (table_name,)).fetchall()
+            try:
+                self.execute(u"select {0} from {1}".format(join_list(fields, ', '), table_name))
+            except:
+                raise Exception(u"can not select from '{0}' fields \n{1}".format(table_name, join_list(fields, "\n")))
+        return self
+    
+    def createTableIfNotExists(self, name, fields, meta_fields = {'id':'primary key not null'}, constraints = None):
+        self.execute(u"create table if not exists {0} ({1})".format(name,
+                                                                    self._format_table_creator(fields, meta_fields, constraints)))
+        self.registerTable(name, table_type, fields, meta_fields)
+        return self
+
+    def createTable(self, name, fields, meta_fields = {'id':'primary key not null'}, constraints = None):
+        self. execute(u"create table {0} ({1})".format(name,
+                                                       self._format_table_creator(fields, meta_fields, constraints)))
+        return self
+
+    def _format_table_creator(self, fields, meta_fields, constraints):
+        ret = meta_fields != {} and join_list(map(lambda a:u"{0} {1}".format(a, meta_fields[a]), meta_fields), ", ") or ""
+        ret += fields != {} and join_list(map(lambda a:u"{0} {1}".format(a, fields[a]), fields), ", ") or ""
+        ret += constraints or ""
+        return ret
+        
+    
+        
+                                    
+                                                    
+        
+        
+        
     
 
 def isTableAre(sq, table_name):
