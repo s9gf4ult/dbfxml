@@ -13,12 +13,15 @@ class sqliteConnection(sqlite3.Connection):
         self.createTableIfNotExists('meta$tables', {'name':'varchar not null',
                                                     'type':'varchar not null',
                                                     'comment':'text'},
+                                    table_type = 'meta',
                                     constraints = 'unique (name)')
-        self.createTableIfNotExists('meta$fields', {'table_name':'varchar not null',
-                                                    'field_name':'varchar not null',
+        self.createTableIfNotExists('meta$fields', {'name':'varchar not null',
                                                     'type':'varchar not null',
-                                                    'comment':'text'}
-                                    constraints = 'unique(table_name, field_name)')
+                                                    'comment':'text'},
+                                    table_type = 'meta',
+                                    meta_fields = {'meta$id':'primary key not null',
+                                                   'meta$table_id':'int not null'},
+                                    constraints = 'unique(meta$table_id, field_name), foreign key (meta$table_id) references meta$tables(meta$id) on delete cascade')
         if  self.execute("select t.* from meta$tables t where not exists (select t2.* from sqlite_master t2 where t2.type = 'table' and t2.name = t1.name)").fetchall() != []:
             raise Exception('there is some tables in "meta$tables" which does not exists')
         for table_name in self.execute("select t.name from meta$tables t"):
@@ -29,15 +32,16 @@ class sqliteConnection(sqlite3.Connection):
                 raise Exception(u"can not select from '{0}' fields \n{1}".format(table_name, join_list(fields, "\n")))
         return self
     
-    def createTableIfNotExists(self, name, fields, meta_fields = {'id':'primary key not null'}, constraints = None):
+    def createTableIfNotExists(self, name, fields, meta_fields = {'id':'primary key not null'}, constraints = None, table_type = 'data'):
         self.execute(u"create table if not exists {0} ({1})".format(name,
                                                                     self._format_table_creator(fields, meta_fields, constraints)))
         self.registerTable(name, table_type, fields, meta_fields)
         return self
 
-    def createTable(self, name, fields, meta_fields = {'id':'primary key not null'}, constraints = None):
+    def createTable(self, name, fields, meta_fields = {'id':'primary key not null'}, constraints = None, table_type = 'data'):
         self. execute(u"create table {0} ({1})".format(name,
                                                        self._format_table_creator(fields, meta_fields, constraints)))
+        self.registerTable(name, table_type, fields, meta_fields)
         return self
 
     def _format_table_creator(self, fields, meta_fields, constraints):
@@ -45,6 +49,28 @@ class sqliteConnection(sqlite3.Connection):
         ret += fields != {} and join_list(map(lambda a:u"{0} {1}".format(a, fields[a]), fields), ", ") or ""
         ret += constraints or ""
         return ret
+        
+    def registerTable(self, table_name, table_type, fields, meta_fields):
+        table_id = self.getMaxField('meta$tables', 'meta$id') + 1
+        field_id = self.getMaxField('meta$fields', 'meta$if') + 1
+        self.execute('insert into meta$tables(meta$id, name, type) values (?,?,?)', (table_id, table_name, table_type))
+        
+        for field in fields:
+            self.execute('insert into meta$fields(meta$id, meta$table_id, name, type) values (?,?,?,?)', (field_id, table_id, field, 'data'))
+            field_id += 1
+            
+        for field in meta_fields:
+            self.execute('insert into meta$fields(meta$id, meta$table_id, name, type) values (?,?,?,?)', (field_id, table_id, field, 'meta'))
+            field_id += 1
+        return self
+
+    def getMaxField(self, table_name, field_name):
+        rtfd = self.execute(u'select max({0}) from {1}'.format(field_name, table_name)).fetchone()
+        if rtfd == (None,):
+            return 0
+        return rtfd[0]
+        
+        
         
     
         
