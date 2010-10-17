@@ -19,5 +19,5 @@ def findFilesByRegexp(directory, pattern, flags = 0):
             found.extend(map(lambda a: "{0}/{1}".format(dirpath, a), filter(lambda a: re.match(pattern, a, flags = flags), files)))
         return found
 
-def join_list(a, delim):
-    return reduce(lambda (one, two): u'{0}{1}{2}'.format(one, delim, two), a)
+def join_list(a, delim = ', '):
+    return reduce(lambda one, two: u'{0}{1}{2}'.format(one, delim, two), a)
