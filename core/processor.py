@@ -2,6 +2,7 @@
 import os
 import re
 import binascii
+import copy
 
 import ydbf
 
@@ -29,7 +30,8 @@ class mainProcessor:
             raise Exception("file {0} does not exists".format(file_name))
         with open(file_name, 'ro') as file:
             file_crc32 = binascii.crc32(file.read())
-        for exfile in self.sq_connection.execute("select * from meta$processed_files where full_path = ?", (os.path.realpath(file_name),)):
+        file_found = False
+        for exfile in self.sq_connection.executeAdv("select * from meta$processed_files where full_path = ?", (os.path.realpath(file_name),)):
             if exfile['meta$crc32'] != file_crc32 or exfile['meta$table_name'] != table_name:
                 raise Exception(u"""there is already exis one record for file {ff}
                 existing records {rec1}
@@ -37,9 +39,50 @@ class mainProcessor:
                                                                                      rec1 = exfile,
                                                                                      name = file_name,
                                                                                      table = table_name,
-                                                                                     crc32 = file_crc32))
+                                                                                     crc = file_crc32))
+            file_found = True
+
+        if not file_found:
+            self.sq_connection.insertInto("meta$processed_files", {"full_path":os.path.realpath(file_name),
+                                                                   "processed":0,
+                                                                   "meta$table_name":table_name,
+                                                                   "meta$crc32":file_crc32})
+            core.logger(u"file {0} inserted for processing in table {1}".format(file_name, table_name))
             
-                
+        return self
+
+            
+            
+    def loadTable(self, table_name):
+        self._createTableToLoad(table_name)
+        self._attachFreeFiles(table_name)
+        self._loadFilesToTable(table_name)
+        return self
+
+    def _createTableToLoad(self, table_name):
+        if self.sq_connection.execute(u"select * from meta$tables where name = ?", (table_name,)).fetchone() == None:
+            self.sq_connection.createTableIfNotExists(table_name,
+                                                      self._scanFilesAndGetFieldsForTable(table_name),
+                                                      table_type = 'data',
+                                                      meta_fields = {"meta$id":"int primary key not null",
+                                                                     "meta$file_id":"int not null"},
+                                                      constraints = "foreign key (meta$file_id) references meta$processed_files(meta$id) on delete cascade")
+            core.logger(u"table {0} is the table for loading source data".format(table_name))
+        return self
+
+    def _scanFilesAndGetFieldsForTable(self, table_name):
+        """returns collected dict of fields {'name':'type'} for all files attached to 'table_name'"""
+        collected = {}
+        for file_rec in self.sq_connection.executeAdv(u"select full_path from meta$processed_files where processed = 0 and meta$table_id is null and meta$table_name = ?", (table_name,)):
+            collected = self._mergeDicts(collected, self._dbfFields(file_rec['full_path']))
+        return self._mapDbfDataTypesToSqlie(collected)
+            
+    def _mergeDicts(self, first, second):
+        ret = copy.copy(first)
+        for key in second:
+            
+        
+                                                      
             
             
             

@@ -111,7 +111,7 @@ class sqliteConnection(sqlite3.Connection):
         """(table_name, values)insert values into table_name where values is dictionary {key: value}"""
         keys = []
         for key in values:
-            if values[key]:
+            if values[key] != None:
                 keys.append(key)        # соберем ключи для не пустых значений
         if 'meta$id' not in keys:
             keys.append('meta$id')
@@ -124,10 +124,11 @@ class sqliteConnection(sqlite3.Connection):
         try:
             self.execute(query, map(lambda a: values[a], keys)) # а вот сдесь собсно значения
         except:
-            raise Exception("""It seems that one of values gived in hash has unsupported type
+            print("""It seems that one of values gived in hash has unsupported type
             it probably has no adapter in sqlite.
             Here is all keys that gived into {0}:\n
             {1}""".format(table_name, reduce(lambda a, b:"{0}\n{1}".format(a,b), map(lambda a:"key:{0}, value:{1}, class{2}".format(a, values[a], values[a].__class__), keys))))
+            raise
         return self
 
     def executeAdv(self, query, values=()):
