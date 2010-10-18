@@ -16,7 +16,7 @@ class sqliteConnection(sqlite3.Connection):
         self.execute("create table if not exists meta$tables (meta$id int primary key not null, name varchar not null, type varchar not null, comment varchar, unique(name))")
         self.execute("create table if not exists meta$fields (meta$id int primary key not null, meta$table_id int not null, name varchar not null, type varchar not null, comment varchar, unique(meta$table_id, name), foreign key (meta$table_id) references meta$tables(meta$id) on delete cascade)")
         # заносим в метатаблицы информацию о метатаблицах
-        if self.execute("select * from meta$tables where name = ?", ("meta$table",)).fetchone() == None:
+        if self.execute("select * from meta$tables where name = ?", ("meta$tables",)).fetchone() == None:
             self.execute("insert into meta$tables(meta$id, name, type, comment) values  (?,?,?,?)", (self.getMaxField("meta$tables", "meta$id") + 1, "meta$tables", "meta", "meta table with information about tables"))
         if self.execute("select * from meta$tables where name = ?", ("meta$fields",)).fetchone() == None:
             self.execute("insert into meta$tables(meta$id, name, type, comment) values (?,?,?,?)", (self.getMaxField("meta$tables", "meta$id") + 1, "meta$fields", "meta", "meta table with information about fields of tables"))
@@ -76,6 +76,7 @@ class sqliteConnection(sqlite3.Connection):
     def dropTable(self, name):
         self.execute(u"drop table {0}".format(name))
         self.execute(u"delete from meta$tables where name = ?",(name,)) # записи о полях уничтожаются по констрейну
+        return self
 
     def _format_table_creator(self, fields, meta_fields, constraints):
         ret = meta_fields != {} and join_list(map(lambda a:u"{0} {1}".format(a, meta_fields[a]), meta_fields), ", ") or ""

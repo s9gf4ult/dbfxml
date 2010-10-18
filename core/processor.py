@@ -1,22 +1,23 @@
 # -*- coding: utf-8 -*-
 import os
 import re
+import binascii
 
 import ydbf
 
-from core import *
-
+import core
+import core.sqlite_connection
     
 class mainProcessor:
     """importer from dbf to sqlite3"""
     def __init__(self, sqlite_file, encoding = 'cp866'):
         self.encoding = encoding
-        self.sq_connection = core.sqlite_connection.sqliteConnnection(sqlite_file)
-        self.sq_connection.createTableIfNotExists("meta$processed_files", {"full_path":"varchar not null", "processed":"integer not null"}, meta_fields = {"meta$id":"int primary key not null", "meta$table_id":"int not null", "meta$crc32":"int not null"}, constraints = "foreign key (meta$table_id) references meta$tables(meta$id) on delete cascade, unique(full_path,meta$table_id), unique(meta$crc32)", table_type = 'meta')
-        self.sq_connection.createTableIfNotExists("meta$filters", {"name":"varchar not null", "source":"int not null", "dest":"int not null"}, table_type = 'meta', constraints = "unique(source, dest), foreign key (source) references meta$tables(meta$id) on delete cascade, foreign key (dest) references meta$tables(meta$id) on delete cascade")
-        self.sq_connection.createTableIfNotExists("meta$containers", {"name":"varchar not null", "params":"varchar not null"}, table_type = 'meta')
-        self.sq_connection.createTableIfNotExists("meta$xml_getters", {"name":"varchar not null", "source":"int not null"}, table_type = 'meta', constraints = "foreign key (source) references meta$tables(meta$id) on delete cascade")
-        self.sq_connection.createTableIfNotExists("meta$getter_container", {"getter":"int not null", "container":"int not null"}, table_type = 'meta', constraints = "foreign key (getter) references meta$xml_getters(meta$id) on delete cascade, foreign key (container) references meta$containers(meta$id) on delete cascade")
+        self.sq_connection = core.sqlite_connection.sqliteConnection(sqlite_file)
+        self.sq_connection.createTableIfNotExists("meta$processed_files", {"full_path":"varchar not null", "processed":"integer not null"}, meta_fields = {"meta$id":"int primary key not null","meta$table_name":"varchar", "meta$table_id":"int", "meta$crc32":"int not null"}, constraints = "foreign key (meta$table_id) references meta$tables(meta$id) on delete cascade, unique(full_path,meta$table_id), unique(meta$crc32)", table_type = 'meta') # исходные файлы для работы
+        self.sq_connection.createTableIfNotExists("meta$filters", {"name":"varchar not null", "source":"int not null", "dest":"int not null"}, table_type = 'meta', constraints = "unique(source, dest), foreign key (source) references meta$tables(meta$id) on delete cascade, foreign key (dest) references meta$tables(meta$id) on delete cascade") # фильтры для преобразования одной таблицы в другую
+        self.sq_connection.createTableIfNotExists("meta$containers", {"name":"varchar not null", "params":"varchar not null"}, table_type = 'meta') # контейнеры это шаблоны для xml выгрузки
+        self.sq_connection.createTableIfNotExists("meta$xml_getters", {"name":"varchar not null", "source":"int not null"}, table_type = 'meta', constraints = "foreign key (source) references meta$tables(meta$id) on delete cascade") # геттеры это обекты которые из таблицы получают xml дом
+        self.sq_connection.createTableIfNotExists("meta$getter_container", {"getter":"int not null", "container":"int not null"}, table_type = 'meta', constraints = "foreign key (getter) references meta$xml_getters(meta$id) on delete cascade, foreign key (container) references meta$containers(meta$id) on delete cascade") # сдесь хранятся связи для передачи сформированного xml дома в контейнер, путь по которому будет сложен xml дом должен знать сам контейнер
         
 
     def __del__(self):
@@ -26,17 +27,21 @@ class mainProcessor:
         """add file_name to database for exporting to table_name"""
         if not os.path.exists(file_name):
             raise Exception("file {0} does not exists".format(file_name))
-        id = sql_helpers.getIdForTable(self.sq_connection, "processed_files")
-        try:
-            self.sq_connection.execute("insert into processed_files(id, full_path, processed, table_name)  values (?,?,?,?)", (id, os.path.realpath(file_name), 0, table_name))
-        except:
-            if self.sq_connection.execute("select * from processed_files where full_path = ?", (os.path.realpath(file_name),)).fetchall() != []:
-                log.log("file {0} did not added for processing (already aded)".format(file_name))
-            else:
-                raise
-        else:
-            self.sq_connection.commit()
-            log.log("file {0} added".format(file_name))
+        with open(file_name, 'ro') as file:
+            file_crc32 = binascii.crc32(file.read())
+        for exfile in self.sq_connection.execute("select * from meta$processed_files where full_path = ?", (os.path.realpath(file_name),)):
+            if exfile['meta$crc32'] != file_crc32 or exfile['meta$table_name'] != table_name:
+                raise Exception(u"""there is already exis one record for file {ff}
+                existing records {rec1}
+                records for insert name:{name}, table:{table}, crc32:{crc}""".format(ff = file_name,
+                                                                                     rec1 = exfile,
+                                                                                     name = file_name,
+                                                                                     table = table_name,
+                                                                                     crc32 = file_crc32))
+            
+                
+            
+            
             
 
     def processTable(self, table_name):
