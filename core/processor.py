@@ -1,25 +1,23 @@
 # -*- coding: utf-8 -*-
 import os
 import re
-import datetime
-import decimal
-import sys
-reload(sys)                             # круто да ?
-sys.setdefaultencoding('utf-8')         # а вот зачем это было нужно
 
 import ydbf
-import sqlite3
-import log
-import sql_helpers
+
+from core import *
 
     
-class importer:
+class mainProcessor:
     """importer from dbf to sqlite3"""
     def __init__(self, sqlite_file, encoding = 'cp866'):
         self.encoding = encoding
-        self.sq_connection = sqlite3.connect(sqlite_file, detect_types = sqlite3.PARSE_DECLTYPES)
-        sql_helpers.makeTableIfNotExists(self.sq_connection, "processed_files", {"full_path": "varchar not null", "processed": "integer not null", "table_name" : "varchar not null"}, ["unique(full_path)"])
-        self.sq_connection.execute("pragma foreign_keys = on")
+        self.sq_connection = core.sqlite_connection.sqliteConnnection(sqlite_file)
+        self.sq_connection.createTableIfNotExists("meta$processed_files", {"full_path":"varchar not null", "processed":"integer not null"}, meta_fields = {"meta$id":"int primary key not null", "meta$table_id":"int not null", "meta$crc32":"int not null"}, constraints = "foreign key (meta$table_id) references meta$tables(meta$id) on delete cascade, unique(full_path,meta$table_id), unique(meta$crc32)", table_type = 'meta')
+        self.sq_connection.createTableIfNotExists("meta$filters", {"name":"varchar not null", "source":"int not null", "dest":"int not null"}, table_type = 'meta', constraints = "unique(source, dest), foreign key (source) references meta$tables(meta$id) on delete cascade, foreign key (dest) references meta$tables(meta$id) on delete cascade")
+        self.sq_connection.createTableIfNotExists("meta$containers", {"name":"varchar not null", "params":"varchar not null"}, table_type = 'meta')
+        self.sq_connection.createTableIfNotExists("meta$xml_getters", {"name":"varchar not null", "source":"int not null"}, table_type = 'meta', constraints = "foreign key (source) references meta$tables(meta$id) on delete cascade")
+        self.sq_connection.createTableIfNotExists("meta$getter_container", {"getter":"int not null", "container":"int not null"}, table_type = 'meta', constraints = "foreign key (getter) references meta$xml_getters(meta$id) on delete cascade, foreign key (container) references meta$containers(meta$id) on delete cascade")
+        
 
     def __del__(self):
         self.sq_connection.close()

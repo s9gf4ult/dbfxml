@@ -2,6 +2,7 @@
 
 import sqlite3
 from common_helpers import *
+import core
 
 class sqliteConnection(sqlite3.Connection):
     def __init__(self, initstr):
@@ -59,6 +60,7 @@ class sqliteConnection(sqlite3.Connection):
         
         self.execute(u"create table if not exists {0} ({1})".format(name,
                                                                     self._format_table_creator(fields, meta_fields, constraints)))
+        core.logger(u"table {0} has been created".format(name))
         self.registerTable(name, table_type, fields, meta_fields)
         return self
 
@@ -67,8 +69,13 @@ class sqliteConnection(sqlite3.Connection):
         
         self. execute(u"create table {0} ({1})".format(name,
                                                        self._format_table_creator(fields, meta_fields, constraints)))
+        core.logger(u"table {0} has been created".format(name))
         self.registerTable(name, table_type, fields, meta_fields)
         return self
+    
+    def dropTable(self, name):
+        self.execute(u"drop table {0}".format(name))
+        self.execute(u"delete from meta$tables where name = ?",(name,)) # записи о полях уничтожаются по констрейну
 
     def _format_table_creator(self, fields, meta_fields, constraints):
         ret = meta_fields != {} and join_list(map(lambda a:u"{0} {1}".format(a, meta_fields[a]), meta_fields), ", ") or ""
