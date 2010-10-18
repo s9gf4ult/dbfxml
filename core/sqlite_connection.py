@@ -122,22 +122,8 @@ class sqliteConnection(sqlite3.Connection):
             {1}""".format(table_name, reduce(lambda a, b:"{0}\n{1}".format(a,b), map(lambda a:"key:{0}, value:{1}, class{2}".format(a, values[a], values[a].__class__), keys))))
         return self
 
-    def executeAdv(self, query, values=None):
-        return sqliteCursor(self.execute(query, values))
-
-class sqliteCursor(sqlite3.Cursor):
-    def __iter__(self):
-        sqlite3.Cursor.__iter__(self)
-        self.desnames = map(lambda a:a[0], self.description)
-        return self
-    
-    def next(self):
-        ret = {}
-        values = sqlite3.Cursor.next(self)
-        for index in range(0, self.desnames.__len__()):
-            ret[self.desnames[index]] = values[index]
-        return ret
-                                    
+    def executeAdv(self, query, values=()):
+        return selectHashIterator(self.execute(query, values))
 
 class selectHashIterator:
     def __init__(self, cur):
