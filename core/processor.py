@@ -15,6 +15,14 @@ class mainProcessor:
 
         self.encoding = encoding
         self.sq_connection = core.sqlite_connection.sqliteConnection(sqlite_file)
+        self.sq_connection.createTableIfNotExists("meta$sources", {"source":"varchar not null",
+                                                                   "arg":"varchar",
+                                                                   "table_name":"varchar not null",
+                                                                   "type":"varchar not null"},
+                                                  constraints = "unique(source, arg, table_name)",
+                                                  table_type = "meta")
+                                                  
+                                                                   
         self.sq_connection.createTableIfNotExists("meta$processed_files", {"full_path":"varchar not null", "processed":"integer not null"}, meta_fields = {"meta$id":"int primary key not null","meta$table_name":"varchar", "meta$table_id":"int", "meta$crc32":"int not null"}, constraints = "foreign key (meta$table_id) references meta$tables(meta$id) on delete cascade, unique(full_path,meta$table_id), unique(meta$crc32)", table_type = 'meta') # исходные файлы для работы
         self.sq_connection.createTableIfNotExists("meta$filters", {"name":"varchar not null", "source":"int not null", "dest":"int not null"}, table_type = 'meta', constraints = "unique(source, dest), foreign key (source) references meta$tables(meta$id) on delete cascade, foreign key (dest) references meta$tables(meta$id) on delete cascade") # фильтры для преобразования одной таблицы в другую
         self.sq_connection.createTableIfNotExists("meta$containers", {"name":"varchar not null", "params":"varchar not null"}, table_type = 'meta') # контейнеры это шаблоны для xml выгрузки
@@ -53,7 +61,7 @@ class mainProcessor:
             
         return self
 
-            
+    
             
     def loadTable(self, table_name):
         self._createTableToLoad(table_name)
