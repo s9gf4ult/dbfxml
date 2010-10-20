@@ -6,7 +6,7 @@ import core
 
 class sqliteConnection(sqlite3.Connection):
     def __init__(self, initstr):
-        sqlite3.Connection.__init__(self, initstr)
+        sqlite3.Connection.__init__(self, initstr, detect_types = sqlite3.PARSE_DECLTYPES)
         self.execute('pragma foreign_keys = on')
         self.checkMetadata()
 

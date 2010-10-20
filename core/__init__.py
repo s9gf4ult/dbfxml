@@ -8,6 +8,7 @@ __all__ = [
 import sqlite3
 import datetime
 import decimal
+import re
 
 logger = None
 
