@@ -12,6 +12,7 @@ import core.sqlite_connection
 class mainProcessor:
     """importer from dbf to sqlite3"""
     def __init__(self, sqlite_file, encoding = 'cp866'):
+
         self.encoding = encoding
         self.sq_connection = core.sqlite_connection.sqliteConnection(sqlite_file)
         self.sq_connection.createTableIfNotExists("meta$processed_files", {"full_path":"varchar not null", "processed":"integer not null"}, meta_fields = {"meta$id":"int primary key not null","meta$table_name":"varchar", "meta$table_id":"int", "meta$crc32":"int not null"}, constraints = "foreign key (meta$table_id) references meta$tables(meta$id) on delete cascade, unique(full_path,meta$table_id), unique(meta$crc32)", table_type = 'meta') # исходные файлы для работы
@@ -47,6 +48,7 @@ class mainProcessor:
                                                                    "processed":0,
                                                                    "meta$table_name":table_name,
                                                                    "meta$crc32":file_crc32})
+            self.sq_connection.commit()
             core.logger(u"file {0} inserted for processing in table {1}".format(file_name, table_name))
             
         return self
@@ -57,6 +59,34 @@ class mainProcessor:
         self._createTableToLoad(table_name)
         self._attachFreeFiles(table_name)
         self._loadFilesToTable(table_name)
+        return self
+
+    def _loadFilesToTable(self, table_name):
+        for filedict in self.sq_connection.executeAdv("select f.full_path, f.meta$id from meta$processed_files f inner join meta$tables t on f.meta$table_id = t.meta$id where t.name = ? and f.processed = 0", (table_name,)):
+            self._loadFileToTable(filedict, table_name)
+        return self
+
+    def _loadFileToTable(self, filedict, table_name):
+        try:
+            rid = self.sq_connection.getMaxField(table_name) + 1
+            with ydbf.open(filedict["full_path"], encoding = self.encoding) as dbfcon:
+                for record in dbfcon:
+                    record["meta$id"] = rid
+                    rid += 1
+                    record["meta$file_id"] = filedict["meta$id"]
+                    self.sq_connection.insertInto(table_name, record)
+        except:
+            self.sq_connection.rollback()
+            raise
+        else:
+            self.sq_connection.commit()
+            core.logger("file {0} loaded in table {1}".format(filedict["full_path"], table_name))
+        return self
+                
+    def _attachFreeFiles(self, table_name):
+        table_id = self.sq_connection.execute("select meta$id from meta$tables where name = ?", (table_name,)).fetchall()[0][0]
+        self.sq_connection.execute(u"update meta$processed_files set meta$table_id = {tid}, meta$table_name = null where processed = 0 and meta$table_name = ?".format(tid = table_id), (table_name,))
+        self.sq_connection.commit()
         return self
 
     def _createTableToLoad(self, table_name):
@@ -75,12 +105,40 @@ class mainProcessor:
         collected = {}
         for file_rec in self.sq_connection.executeAdv(u"select full_path from meta$processed_files where processed = 0 and meta$table_id is null and meta$table_name = ?", (table_name,)):
             collected = self._mergeDicts(collected, self._dbfFields(file_rec['full_path']))
-        return self._mapDbfDataTypesToSqlie(collected)
+        return collected
             
     def _mergeDicts(self, first, second):
         ret = copy.copy(first)
         for key in second:
-            
+            if first.has_key(key) and first[key] != second[key]:
+                raise Exception(u"two fields has different types a[{key}] = {val1}, b[{key}] = {val2}".format(key = key,
+                                                                                                              val1 = first[key],
+                                                                                                              val2 = second[key]))
+            ret[key] = second[key]
+        return ret
+    
+    def _dbfFields(self, filename):
+        ret = {}
+        with ydbf.open(filename, encoding = self.encoding) as dbcon:
+            for field in dbcon.fields:
+                ret[field[0]] = self._mapDbfTypes(field[1:])
+        core.logger("file {0} scanned".format(filename))
+        return ret
+
+    def _mapDbfTypes(self, a):
+        if a[0] == 'C':
+            return "text"
+        elif a[0] == 'D':
+            return "date"
+        elif a[0] == 'N' and a[2] != 0:
+            return "decimal"
+        elif a[0] == 'N' and a[2] == 0:
+            return "integer"
+        elif a == 'L':
+            return "bool"
+        else:
+            raise Exception("can not create field with type {0}".format(a))
+        
         
                                                       
             

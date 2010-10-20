@@ -12,46 +12,51 @@ class sqliteConnection(sqlite3.Connection):
 
     def checkMetadata(self):
         """create or check (if created) tables 'meta$tables' and 'meta$fields' for using in future"""
-        
-        self.execute("create table if not exists meta$tables (meta$id int primary key not null, name varchar not null, type varchar not null, comment varchar, unique(name))")
-        self.execute("create table if not exists meta$fields (meta$id int primary key not null, meta$table_id int not null, name varchar not null, type varchar not null, comment varchar, unique(meta$table_id, name), foreign key (meta$table_id) references meta$tables(meta$id) on delete cascade)")
-        # заносим в метатаблицы информацию о метатаблицах
-        if self.execute("select * from meta$tables where name = ?", ("meta$tables",)).fetchone() == None:
-            self.execute("insert into meta$tables(meta$id, name, type, comment) values  (?,?,?,?)", (self.getMaxField("meta$tables", "meta$id") + 1, "meta$tables", "meta", "meta table with information about tables"))
-        if self.execute("select * from meta$tables where name = ?", ("meta$fields",)).fetchone() == None:
-            self.execute("insert into meta$tables(meta$id, name, type, comment) values (?,?,?,?)", (self.getMaxField("meta$tables", "meta$id") + 1, "meta$fields", "meta", "meta table with information about fields of tables"))
-        # заносим в метататаблицы информацию о полях метатблиц
-        table_id =  self.execute("select meta$id from meta$tables where name = ?", ("meta$tables",)).fetchone()[0]
-        field_id = self.getMaxField("meta$fields") + 1
-        for ff in [("meta$id", "meta", "id of the table"),
-                   ("name", "data", "table name"),
-                   ("type", "data", "can be 'data' or 'meta'"),
-                   ("comment", "data", "no comment")]:
-            if self.execute("select * from meta$fields where name = ? and meta$table_id = ?", (ff[0],table_id)).fetchone() == None:
-                self.execute("insert into meta$fields (meta$id, meta$table_id, name, type, comment) values (?,?,?,?,?)", (field_id, table_id, ff[0], ff[1], ff[2]))
-                field_id += 1
+        try:
+            self.execute("create table if not exists meta$tables (meta$id int primary key not null, name varchar not null, type varchar not null, comment varchar, unique(name))")
+            self.execute("create table if not exists meta$fields (meta$id int primary key not null, meta$table_id int not null, name varchar not null, type varchar not null, comment varchar, unique(meta$table_id, name), foreign key (meta$table_id) references meta$tables(meta$id) on delete cascade)")
+            # заносим в метатаблицы информацию о метатаблицах
+            if self.execute("select * from meta$tables where name = ?", ("meta$tables",)).fetchone() == None:
+                self.execute("insert into meta$tables(meta$id, name, type, comment) values  (?,?,?,?)", (self.getMaxField("meta$tables", "meta$id") + 1, "meta$tables", "meta", "meta table with information about tables"))
+            if self.execute("select * from meta$tables where name = ?", ("meta$fields",)).fetchone() == None:
+                self.execute("insert into meta$tables(meta$id, name, type, comment) values (?,?,?,?)", (self.getMaxField("meta$tables", "meta$id") + 1, "meta$fields", "meta", "meta table with information about fields of tables"))
+            # заносим в метататаблицы информацию о полях метатблиц
+            table_id =  self.execute("select meta$id from meta$tables where name = ?", ("meta$tables",)).fetchone()[0]
+            field_id = self.getMaxField("meta$fields") + 1
+            for ff in [("meta$id", "meta", "id of the table"),
+                       ("name", "data", "table name"),
+                       ("type", "data", "can be 'data' or 'meta'"),
+                       ("comment", "data", "no comment")]:
+                if self.execute("select * from meta$fields where name = ? and meta$table_id = ?", (ff[0],table_id)).fetchone() == None:
+                    self.execute("insert into meta$fields (meta$id, meta$table_id, name, type, comment) values (?,?,?,?,?)", (field_id, table_id, ff[0], ff[1], ff[2]))
+                    field_id += 1
 
-        table_id = self.execute("select meta$id from meta$tables where name = ?", ("meta$fields",)).fetchone()[0]
-        field_id = self.getMaxField("meta$fields") + 1
-        for ff in [("meta$id", "meta", "id of the field"),
-                   ("meta$table_id", "meta", "reference to meta$tables(meta$id)"),
-                   ("name", "data", "name of the field"),
-                   ("type", "data", "can be 'meta' or 'data'"),
-                   ("comment", "data", "comment is comment")]:
-            if self.execute("select * from meta$fields where name = ? and meta$table_id = ?", (ff[0], table_id)).fetchone() == None:
-                self.execute("insert into meta$fields (meta$id, meta$table_id, name, type, comment) values (?,?,?,?,?)", (field_id, table_id, ff[0], ff[1], ff[2]))
-                field_id += 1
-                
-        #проверяем есть ли в таблице meta$tables записи о не существеющих таблицах
-        if  self.execute("select t1.* from meta$tables t1 where not exists (select t2.* from sqlite_master t2 where t2.type = 'table' and t2.name = t1.name)").fetchall() != []:
-            raise Exception('there is some tables in "meta$tables" which does not exists')
-        #проверяем все ли поля в таблице meta$fields действительно есть в таблицах базы
-        for table_ in self.execute("select t.meta$id, t.name from meta$tables t"):
-            fields = map(lambda a:a[0], self.execute(u'select t.name from meta$fields t where t.meta$table_id = ?', (table_[0],)).fetchall())
-            try:
-                self.execute(u"select {0} from {1}".format(join_list(fields, ', '), table_[1]))
-            except:
-                raise Exception(u"can not select from '{0}' fields \n{1}".format(table_[1], join_list(fields, "\n")))
+            table_id = self.execute("select meta$id from meta$tables where name = ?", ("meta$fields",)).fetchone()[0]
+            field_id = self.getMaxField("meta$fields") + 1
+            for ff in [("meta$id", "meta", "id of the field"),
+                       ("meta$table_id", "meta", "reference to meta$tables(meta$id)"),
+                       ("name", "data", "name of the field"),
+                       ("type", "data", "can be 'meta' or 'data'"),
+                       ("comment", "data", "comment is comment")]:
+                if self.execute("select * from meta$fields where name = ? and meta$table_id = ?", (ff[0], table_id)).fetchone() == None:
+                    self.execute("insert into meta$fields (meta$id, meta$table_id, name, type, comment) values (?,?,?,?,?)", (field_id, table_id, ff[0], ff[1], ff[2]))
+                    field_id += 1
+
+            #проверяем есть ли в таблице meta$tables записи о не существеющих таблицах
+            if  self.execute("select t1.* from meta$tables t1 where not exists (select t2.* from sqlite_master t2 where t2.type = 'table' and t2.name = t1.name)").fetchall() != []:
+                raise Exception('there is some tables in "meta$tables" which does not exists')
+            #проверяем все ли поля в таблице meta$fields действительно есть в таблицах базы
+            for table_ in self.execute("select t.meta$id, t.name from meta$tables t"):
+                fields = map(lambda a:a[0], self.execute(u'select t.name from meta$fields t where t.meta$table_id = ?', (table_[0],)).fetchall())
+                try:
+                    self.execute(u"select {0} from {1}".format(join_list(fields, ', '), table_[1]))
+                except:
+                    raise Exception(u"can not select from '{0}' fields \n{1}".format(table_[1], join_list(fields, "\n")))
+        except:
+            self.rollback()
+            raise
+        else:
+            self.commit()
         return self
     
     def createTableIfNotExists(self, name, fields, meta_fields = {'meta$id':'primary key not null'}, constraints = None, table_type = 'data'):
