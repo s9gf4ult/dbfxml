@@ -24,18 +24,20 @@ def join_list(a, delim = ', '):
 
 class iterSummator:
     def __init__(self, *iters):
-        self.iters = iters
+        self.iters = map(lambda a:a.__iter__(), iters)
 
     def __iter__(self):
         return self
 
     def next(self):
-        try:
-            ret = self.iters[0].next()
-            return ret
-        except StopIteration:
-            del self.iters[0]
-            if self.iters.__let__() == 0:
-                raise
+        while True:
+            try:
+                return self.iters[0].next()
+            except StopIteration:
+                del self.iters[0]
+                if self.iters.__len__() == 0:
+                    raise
+                    
+                    
             
     

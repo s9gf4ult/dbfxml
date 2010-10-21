@@ -33,7 +33,7 @@ class mainProcessor:
                                                                              "container_id" : "int not null",
                                                                              "param_name" : "varchar not null"}, # FIXME: надо сделать обработку случая, когда на один param_name может приходится несколько table_id для этого надо поменять формат словаря для addContainer а еще добавить итератор ссумирующий итераторы чтобы передать методу prepare контейнера итератор выбирающий из нескольлких таблиц
                                                   table_type = 'meta',
-                                                  constraints = "foreign key (table_id) references meta$tables(meta$id) on delete cascade, foreign key (container_id) references meta$containers(meta$id) on delete cascade")
+                                                  constraints = "foreign key (table_id) references meta$tables(meta$id) on delete cascade, foreign key (container_id) references meta$containers(meta$id) on delete cascade, unique(table_id, record_id, container_id, param_name)")
                                                                              
 
     def processAllContainers(self):
@@ -47,8 +47,19 @@ class mainProcessor:
         continstance = eval("{0}({1})".format(contname, output))
         continstance.prepare(self._generateDictForContainer(cont))
         continstance.store()
+        core.logger("container {0} processed".format(contname))
         return self
-    
+
+    def _generateDictForContainer(self, cont_id):
+        ret = {}
+        for par in map(lambda a: a[0], self.sq_connection.execute("select distinct param_name from meta$container_records where container_id = ?", (cont_id,)).fetchall()):
+            tbls = []
+            for tbl in map(lambda a: a[0], self.sq_connection.execute("select distinct t.name from meta$tables t inner join meta$container_records cr on cr.table_id = t.meta$id where cr.container_id = ? and cr.param_name = ?", (cont_id, par)).fetchall()):
+                tbls.append(self.sq_connection.executeAdv("select t.* from {table} t inner join meta$container_records cr on cr.record_id = t.meta$id inner join meta$tables tb on tb.meta$id = cr.table_id where cr.container_id = ? and cr.param_name = ? and tb.name = ?".format(table = tbl), (cont_id, par, tbl)))
+            ret[par] = iterSummator(*tbls)
+        return ret
+                
+                
         
     def addContainer(output, name, table_records):
         try:
@@ -69,6 +80,7 @@ class mainProcessor:
             raise
         else:
             self.sq_connection.commit()
+            core.logger("container {0} added".format(name))
         return self
 
     def cleanFilesTable(self):
@@ -101,6 +113,7 @@ class mainProcessor:
         file_found = False
         # файлы с одинаковой контрольной суммой не загружаем
         for exfile in self.sq_connection.executeAdv("select * from meta$processed_files where meta$crc32 = ?", (file_crc32,)):
+            core.logger("file {0} has the same crc32 as file {1} already added to load. ignoring...".format(file_name, exfile["full_path"]))
             return self
         # если есть файл с тем же именем но другими атрибутами выбрасываем ошибку
         for exfile in self.sq_connection.executeAdv("select * from meta$processed_files where full_path = ?", (os.path.realpath(file_name),)):
