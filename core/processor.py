@@ -30,7 +30,8 @@ class mainProcessor:
 
         self.sq_connection.createTableIfNotExists("meta$container_records", {"table_id" : "int not null",
                                                                              "record_id" : "int not null",
-                                                                             "container_id" : "int not null"}
+                                                                             "container_id" : "int not null",
+                                                                             "param_name" : "varchar not null"}, # FIXME: надо сделать обработку случая, когда на один param_name может приходится несколько table_id для этого надо поменять формат словаря для addContainer а еще добавить итератор ссумирующий итераторы чтобы передать методу prepare контейнера итератор выбирающий из нескольлких таблиц
                                                   table_type = 'meta',
                                                   constraints = "foreign key (table_id) references meta$tables(meta$id) on delete cascade, foreign key (container_id) references meta$containers(meta$id) on delete cascade")
                                                                              
@@ -40,11 +41,14 @@ class mainProcessor:
             self.processContainer(cont["meta$id"])
         return self
 
-    # def processContainer(cont):
-    #     contname = self.sq_connection.execute("select name from meta$containers where meta$id = ?", (cont,)).fetchall()[0][0]
-    #     continstance = eval("containers.{0}()".format(contname))
-    #     continstance
-        
+    def processContainer(cont):
+        contname = self.sq_connection.execute("select name from meta$containers where meta$id = ?", (cont,)).fetchall()[0][0]
+        output = self.sq_connection.execute("select output from meta$containers where meta$id = ?", (cont,)).fetchall()[0][0]
+        continstance = eval("{0}({1})".format(contname, output))
+        continstance.prepare(self._generateDictForContainer(cont))
+        continstance.store()
+        return self
+    
         
     def addContainer(output, name, table_records):
         try:
@@ -52,12 +56,14 @@ class mainProcessor:
             self.sq_connection.insertInto("meta$containers", {"meta$id" : cid,
                                                               "name" : name,
                                                               "output" : output})
-            for key in table_records:
-                tid = self.sq_connection.execute("select meta$id from meta$tables where name = ?", (key,)).fetchall()[0][0]
-                for rec in table_records[key]:
-                    self.sq_connection.insertInto("meta$container_records", {"table_id" : tid,
-                                                                             "record_id" : rec,
-                                                                             "container_id" : cid})
+            for par in table_records:
+                for tab in table_records[par]:
+                    tid = self.sq_connection.execute("select meta$id from meta$tables where name = ?", (tab,)).fetchall()[0][0]
+                    for rec in table_records[par][tab]:
+                        self.sq_connection.insertInto("meta$container_records", {"table_id" : tid,
+                                                                                 "record_id" : rec,
+                                                                                 "container_id" : cid,
+                                                                                 "param_name" : par})
         except:
             self.sq_connection.rollback()
             raise

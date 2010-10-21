@@ -21,3 +21,21 @@ def findFilesByRegexp(directory, pattern, flags = 0):
 
 def join_list(a, delim = ', '):
     return reduce(lambda one, two: u'{0}{1}{2}'.format(one, delim, two), a)
+
+class iterSummator:
+    def __init__(self, *iters):
+        self.iters = iters
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        try:
+            ret = self.iters[0].next()
+            return ret
+        except StopIteration:
+            del self.iters[0]
+            if self.iters.__let__() == 0:
+                raise
+            
+    
