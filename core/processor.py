@@ -3,8 +3,8 @@ import os
 import re
 import binascii
 import copy
-
 import ydbf
+from common_helpers import *
 
 import core
 import core.sqlite_connection
@@ -21,15 +21,68 @@ class mainProcessor:
                                                                    "type":"varchar not null"},
                                                   constraints = "unique(source, arg, table_name)",
                                                   table_type = "meta")
-                                                  
                                                                    
         self.sq_connection.createTableIfNotExists("meta$processed_files", {"full_path":"varchar not null", "processed":"integer not null"}, meta_fields = {"meta$id":"int primary key not null","meta$table_name":"varchar", "meta$table_id":"int", "meta$crc32":"int not null"}, constraints = "foreign key (meta$table_id) references meta$tables(meta$id) on delete cascade, unique(full_path,meta$table_id), unique(meta$crc32)", table_type = 'meta') # исходные файлы для работы
-        self.sq_connection.createTableIfNotExists("meta$filters", {"name":"varchar not null", "source":"int not null", "dest":"int not null"}, table_type = 'meta', constraints = "unique(source, dest), foreign key (source) references meta$tables(meta$id) on delete cascade, foreign key (dest) references meta$tables(meta$id) on delete cascade") # фильтры для преобразования одной таблицы в другую
-        self.sq_connection.createTableIfNotExists("meta$containers", {"name":"varchar not null", "params":"varchar not null"}, table_type = 'meta') # контейнеры это шаблоны для xml выгрузки
-        self.sq_connection.createTableIfNotExists("meta$xml_getters", {"name":"varchar not null", "source":"int not null"}, table_type = 'meta', constraints = "foreign key (source) references meta$tables(meta$id) on delete cascade") # геттеры это обекты которые из таблицы получают xml дом
-        self.sq_connection.createTableIfNotExists("meta$getter_container", {"getter":"int not null", "container":"int not null"}, table_type = 'meta', constraints = "foreign key (getter) references meta$xml_getters(meta$id) on delete cascade, foreign key (container) references meta$containers(meta$id) on delete cascade") # сдесь хранятся связи для передачи сформированного xml дома в контейнер, путь по которому будет сложен xml дом должен знать сам контейнер
-        
+        self.sq_connection.createTableIfNotExists("meta$containers", {"name":"varchar not null",
+                                                                      "output" : "varchar not null"},
+                                                  constraints = "unique(output)",
+                                                  table_type = 'meta') # контейнеры это шаблоны для xml выгрузки
 
+        self.sq_connection.createTableIfNotExists("meta$container_records", {"table_id" : "int not null",
+                                                                             "record_id" : "int not null",
+                                                                             "container_id" : "int not null"}
+                                                  table_type = 'meta',
+                                                  constraints = "foreign key (table_id) references meta$tables(meta$id) on delete cascade, foreign key (container_id) references meta$containers(meta$id) on delete cascade")
+                                                                             
+
+    def processAllContainers(self):
+        for cont in self.sq_connection.executeAdv("select * from meta$containers"):
+            self.processContainer(cont["meta$id"])
+        return self
+
+    # def processContainer(cont):
+    #     contname = self.sq_connection.execute("select name from meta$containers where meta$id = ?", (cont,)).fetchall()[0][0]
+    #     continstance = eval("containers.{0}()".format(contname))
+    #     continstance
+        
+        
+    def addContainer(output, name, table_records):
+        try:
+            cid = self.sq_connection.getMaxField("meta$containers") + 1
+            self.sq_connection.insertInto("meta$containers", {"meta$id" : cid,
+                                                              "name" : name,
+                                                              "output" : output})
+            for key in table_records:
+                tid = self.sq_connection.execute("select meta$id from meta$tables where name = ?", (key,)).fetchall()[0][0]
+                for rec in table_records[key]:
+                    self.sq_connection.insertInto("meta$container_records", {"table_id" : tid,
+                                                                             "record_id" : rec,
+                                                                             "container_id" : cid})
+        except:
+            self.sq_connection.rollback()
+            raise
+        else:
+            self.sq_connection.commit()
+        return self
+
+    def cleanFilesTable(self):
+        try:
+            for filedict in self.sq_connection.executeAdv("select meta$id, full_path, meta$crc32 from meta$processed_files"):
+                if  os.path.exists(filedict["full_path"]):
+                    with open(filedict["full_path"], 'ro') as filehnd:
+                        if filedict["meta$crc32"] == binascii.crc32(filehnd.read()):
+                            continue
+                self.sq_connection.execute("delete from meta$processed_files where meta$id = ?", (filedict["meta$id"],))
+            for tablename in self.sq_connection.executeAdv("select t.name from meta$tables t where not exists(select f.* from meta$processed_files f where f.meta$table_name = t.name) and not exists(select f.* from meta$processed_files f where f.meta$table_id = t.meta$id)"):
+                self.sq_connection.dropTable(tablename["name"])
+                
+        except:
+            self.sq_connection.rollback()
+            raise
+        else:
+            self.sq_connection.commit()
+        return self
+        
     def __del__(self):
         self.sq_connection.close()
         
@@ -40,8 +93,12 @@ class mainProcessor:
         with open(file_name, 'ro') as file:
             file_crc32 = binascii.crc32(file.read())
         file_found = False
+        # файлы с одинаковой контрольной суммой не загружаем
+        for exfile in self.sq_connection.executeAdv("select * from meta$processed_files where meta$crc32 = ?", (file_crc32,)):
+            return self
+        # если есть файл с тем же именем но другими атрибутами выбрасываем ошибку
         for exfile in self.sq_connection.executeAdv("select * from meta$processed_files where full_path = ?", (os.path.realpath(file_name),)):
-            if exfile['meta$crc32'] != file_crc32 or exfile['meta$table_name'] != table_name:
+            if exfile["processed"] == 0 and (exfile['meta$crc32'] != file_crc32 or exfile['meta$table_name'] != table_name):
                 raise Exception(u"""there is already exis one record for file {ff}
                 existing records {rec1}
                 records for insert name:{name}, table:{table}, crc32:{crc}""".format(ff = file_name,
@@ -61,7 +118,34 @@ class mainProcessor:
             
         return self
 
-    
+    def addSourceDirectory(self, tablename, dirname, filewild):
+        rec = {"table_name" : tablename,
+               "source" : dirname,
+               "arg" : filewild,
+               "type" : "directory"}
+        self.sq_connection.insertInto("meta$sources", rec)
+        return self
+
+    def addSourceFile(self, tablename, filename):
+        rec = {"table_name" : tablename,
+               "source" : filename,
+               "type" : "file"}
+        self.sq_connection.insertInto("meta$sources", rec)
+        return self
+
+    def rescanSources(self):
+        for source in self.sq_connection.executeAdv("select * from meta$sources"):
+            self.rescanSource(source)
+        return self
+
+    def rescanSource(self, source):
+        if source["type"] == 'file':
+            self.addForProcessing(source["source"], source["table_name"])
+        elif source["type"] == 'directory':
+            self.addForProcessingByPattern(source["table_name"], source["source"], source["arg"])
+        else:
+            raise Exception("source type {0} is not supported yet".format(source["type"]))
+        return self
             
     def loadTable(self, table_name):
         self._createTableToLoad(table_name)
@@ -83,6 +167,7 @@ class mainProcessor:
                     rid += 1
                     record["meta$file_id"] = filedict["meta$id"]
                     self.sq_connection.insertInto(table_name, record)
+            self.sq_connection.execute("update meta$processed_files set processed = 1 where meta$id = ?", (filedict["meta$id"],))
         except:
             self.sq_connection.rollback()
             raise
@@ -148,84 +233,12 @@ class mainProcessor:
             raise Exception("can not create field with type {0}".format(a))
         
         
-                                                      
-            
-            
-            
-
-    def processTable(self, table_name):
-        """processes table table_name if any file is assigned to it"""
-        if self.sq_connection.execute("select * from processed_files where table_name = '{0}'".format(table_name)).fetchall() == [] :
-            raise Exception("there is no files attached to table {0}".format(table_name))
-        files_list = map(lambda a: a[0], self.sq_connection.execute("select full_path from processed_files where table_name = '{0}' and processed = 0".format(table_name)).fetchall())
-        if files_list == []:
-            log.log("no one file assigned to table {0}".format(table_name))
-        if not sql_helpers.isTableAre(self.sq_connection, table_name):
-            #таблицы еще нет в базе - создаем, узнаем типы и имена полей из дбф файлов, проверяем соответствия полей типам 
-            for filename in files_list:
-                log.log("reading structure of {0}".format(filename))
-                dbfcon = ydbf.open(filename, encoding = self.encoding)
-                if not vars().has_key("fields"): # если еще не поеределили переменную
-                    fields = {} # тут храним имена и типы полей, которые будем создавать
-                    for field in dbfcon.fields:
-                        fields[field[0]] = [field[1], field[3]]
-                else: # переменная уже определена, если встретятся поля с другим типом - выбросим исключение
-                    for field in dbfcon.fields:
-                        if fields.has_key(field[0]):
-                            if fields[field[0]] != [field[1], field[3]]:
-                                raise Exception("file {file} has field {field} with type {type1}, another fields in another files has type {type2}".format(file = filename, field = field[0], type1 = field[1], type2 = fields[field[0]]))
-                        else:
-                            fields[field[0]] = [field[1], field[3]]
-                dbfcon.close()
-            # теперь надо создать таблицу в базе
-            def mapdatatype(a):         # отображение типов из dbf в типы sqlite3
-                if a[0] == 'C':
-                    return "text"
-                elif a[0] == 'D':
-                    return "date"
-                elif a[0] == 'N' and a[1]:
-                    return "decimal"
-                elif a[0] == 'N' and not a[1]:
-                    return "integer"
-                elif a == 'L':
-                    return "bool"
-                else:
-                    raise Exception("can not create field with type {0}".format(a))
-
-            for field in fields:
-                fields[field] = mapdatatype(fields[field])
-            sql_helpers.makeTableIfNotExists(self.sq_connection, table_name, fields)
-            sql_helpers.makeTableIfNotExists(self.sq_connection, "file_assigns", {"file_id" : "integer", "record_id": "integer"}, ["foreign key (file_id) references processed_files(id) on delete cascade", "unique(file_id, record_id)"])
-        #таблица существует - заносим в нее данные из файлов
-        table_id = sql_helpers.getIdForTable(self.sq_connection, table_name)
-        assign_id = sql_helpers.getIdForTable(self.sq_connection, "file_assigns")
-        
-        try:
-            for file_tuple in self.sq_connection.execute("select id, full_path from processed_files where table_name = '{0}' and processed = 0".format(table_name)).fetchall():
-                log.log("inserting records from {0}".format(file_tuple[1]))
-                for rec in ydbf.open(file_tuple[1], encoding = self.encoding):
-                    rec["id"] = table_id
-                    sql_helpers.insertInto(self.sq_connection, table_name, rec)
-                    sql_helpers.insertInto(self.sq_connection, "file_assigns", {"id" : assign_id, "file_id" : file_tuple[0], "record_id" : table_id})
-                    table_id += 1
-                    assign_id += 1
-                self.sq_connection.execute("update processed_files set processed = 1 where id = {0}".format(file_tuple[0]))
-        except:
-            self.sq_connection.rollback()
-            raise
-        else:
-            self.sq_connection.commit()
-            
-        
-    def getSqliteConnection(self):
-        return self.sq_connection
-
-    def getUnprocessedTables(self):
-        return map(lambda a: a[0], self.sq_connection.execute("select distinct table_name from processed_files where processed = 0").fetchall())
+    def getUnloadedTables(self):
+        return set( map(lambda a: a[0], self.sq_connection.execute("select distinct meta$table_name from meta$processed_files where processed = 0 and meta$table_name is not null and meta$table_id is null").fetchall()) + map(lambda a:a[0], self.sq_connection.execute("select t.name from meta$tables t inner join meta$processed_files f on f.meta$table_id = t.meta$id where f.processed = 0 and f.meta$table_name is null").fetchall()))
     
-    def processAllTables(self):
-        for table in self.getUnprocessedTables():
-            self.processTable(table)
+    def loadAllTables(self):
+        for table in self.getUnloadedTables():
+            self.loadTable(table)
 
     def addForProcessingByPattern(self, table_name, directory, pattern = '.*' , flags = 0):
         files = findFilesByRegexp(directory, pattern, flags)
