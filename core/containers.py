@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 from lxml import etree
+import datetime
+import time
+from uuid import uuid1
 
 
 class mainContainer:
-    def __init__(self, out, coding = 'utf-8' ):
+    def __init__(self, out, encoding = 'utf-8' ):
         self.out = out
-        self.element = etree.Element()
+        self.encoding = encoding
+        self.element = etree.Element('container')
 
     def prepare(self, paramsDict):
         self.generateTemplate()
@@ -13,7 +17,96 @@ class mainContainer:
         return self
 
     def store(self):
-        etree.tostring(self.element)
+        with open(self.out, 'w') as fout:
+            fout.write(etree.tostring(self.element, pretty_print = True, encoding = self.encoding, xml_declaration = True))
+        return self
+
+    def generateTemplate(self):pass
+    def attach_parameters(self, params):pass
+
+
+class dloContainer(mainContainer):
+    guid = '{3FB7DEAC-DDF5-11DF-8307-00145E64D9DF}'
+    def generateTemplate(self):
+        self.element.tag = 'MAIN'
+        for fixed in [('FORMAT_GUID', '{E619D0D5-7430-4840-9E35-C15BC1EF0E3D}'),
+                      ('PROTOCOL', 'PHARMACY_REESTR'),
+                      ('VER', '3.0'),]:
+            etree.SubElement(self.element, fixed[0]).text = fixed[1]
+        tt = time.localtime(time.time())
+        etree.SubElement(self.element, 'CREATE_TIME').text = datetime.datetime(tt.tm_year, tt.tm_mon, tt.tm_mday, tt.tm_hour, tt.tm_min, tt.tm_sec).isoformat()
+        
+        snd = etree.Element('SENDINFO')
+        etree.SubElement(snd, 'HOST_GUID').text = self.guid
+        etree.SubElement(snd, 'SEND_GUID').text = "{{{0}}}".format(uuid1().__str__().upper())
+        self.element.append(snd)
+
+        etree.SubElement(self.element, 'DATAMAIN').append(etree.Element('DOCUMENTS'))
+        return self
+        
+    def attach_parameters(self, params):
+        dcs = self.element.find('DATAMAIN').find('DOCUMENTS')
+        dcs.append(self.getPersondlo(params["persondlo"]))
+        dcs.append(self.getPrescriptions(params["prescriptions"]))
+        self.generateChsm()
+        return self
+    
+    def getPersondlo(self, iterator):
+        pers = xmlPersondlo('PERSONDLO_DOC', iterator)
+        pers.iterate()
+        return pers.element
+
+    def getPrescriptions(self, iterator):
+        presc = xmlPrescriptions('PHARMACYRECIPE_DOC', iterator)
+        presc.iterate()
+        return pers.element
+    
+
+class xmlGetter:
+    def __init__(self, name, iterator):
+        self.element = etree.Element(name)
+        self.iterator = iterator
+
+    def iterate(self):
+        for elt in self.iterator:
+            xmlelt = self.elementclass(elt)
+            self.element.append(xmlelt.element)
+
+    elementclass = None
+            
+class xmlPersondlo(xmlGetter):
+    def __init__(self):
+        xmlGetter.__init__(self)
+        self.elementclass = xmlElementPersondlo
+
+class xmlPrescriptions(xmlGetter):
+    def __init__(self):
+        xmlGetter.__init__(self)
+        self.elementclass = xmlElementPrescriptions
+
+class xmlElement:
+    def __init__(self, eltdict):
+        self.generateElement()
+        self.generateAttribs()
+        self.attachParams(eltdict)
+
+    def generateElement(self):pass
+    def generateAttribs(self):pass
+    def attachParams(self, eltdict):pass
+
+class xmlElementPrescriptions(xmlElement):
+    def generateElement(self):
+        self.element = etree.Element('PHARMACYRECIPE')
+    def generateAttribs(self):
+        self.element.attrib['op'] = 'I'
+
+
+class xmlElementPersondlo(xmlElement):
+    def generateElement(self):
+        self.element = etree.Element('PERSONDLO')
+    def generateAttribs(self):
+        self.element = attrib['op'] = 'I'
+        
 
 
 
@@ -24,10 +117,8 @@ class mainContainer:
 
 
 
-from lxml import etree
-from common_helpers import *
-import sql_helpers
-import transformer
+
+
 
 def mapTransformerToContainer(trans):
     classes = {transformer.perstransform:personsxml,

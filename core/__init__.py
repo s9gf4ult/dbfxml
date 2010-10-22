@@ -2,7 +2,8 @@
 
 __all__ = [
     'sqlite_connection',
-    'processor'
+    'processor',
+    'containers'
     ]
 
 import sqlite3
