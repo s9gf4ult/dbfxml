@@ -7,14 +7,14 @@ import ydbf
 from common_helpers import *
 
 import core
-import core.sqlite_connection
+from  core import sqlite_connection, containers
     
 class mainProcessor:
     """importer from dbf to sqlite3"""
     def __init__(self, sqlite_file, encoding = 'cp866'):
 
         self.encoding = encoding
-        self.sq_connection = core.sqlite_connection.sqliteConnection(sqlite_file)
+        self.sq_connection = sqlite_connection.sqliteConnection(sqlite_file)
         self.sq_connection.createTableIfNotExists("meta$sources", {"source":"varchar not null",
                                                                    "arg":"varchar",
                                                                    "table_name":"varchar not null",
@@ -59,9 +59,7 @@ class mainProcessor:
             ret[par] = iterSummator(*tbls)
         return ret
                 
-                
-        
-    def addContainer(output, name, table_records):
+    def addContainer(self, output, name, table_records):
         try:
             cid = self.sq_connection.getMaxField("meta$containers") + 1
             self.sq_connection.insertInto("meta$containers", {"meta$id" : cid,
@@ -113,7 +111,8 @@ class mainProcessor:
         file_found = False
         # файлы с одинаковой контрольной суммой не загружаем
         for exfile in self.sq_connection.executeAdv("select * from meta$processed_files where meta$crc32 = ?", (file_crc32,)):
-            core.logger("file {0} has the same crc32 as file {1} already added to load. ignoring...".format(file_name, exfile["full_path"]))
+            if exfile["full_path"] != file_name:
+                core.logger("file {0} has the same crc32 as file {1} already added to load. ignoring...".format(file_name, exfile["full_path"]))
             return self
         # если есть файл с тем же именем но другими атрибутами выбрасываем ошибку
         for exfile in self.sq_connection.executeAdv("select * from meta$processed_files where full_path = ?", (os.path.realpath(file_name),)):
