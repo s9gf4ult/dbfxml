@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from lxml import etree
 import datetime
+import decimal
 import time
 from uuid import uuid1
 from common_helpers import *
@@ -77,13 +78,13 @@ class xmlGetter:
     elementclass = None
             
 class xmlPersondlo(xmlGetter):
-    def __init__(self):
-        xmlGetter.__init__(self)
+    def __init__(self, name, iterator):
+        xmlGetter.__init__(self, name, iterator)
         self.elementclass = xmlElementPersondlo
 
 class xmlPrescriptions(xmlGetter):
-    def __init__(self):
-        xmlGetter.__init__(self)
+    def __init__(self, name, iterator):
+        xmlGetter.__init__(self, name, iterator)
         self.elementclass = xmlElementPrescriptions
 
 class xmlElement:
@@ -97,7 +98,7 @@ class xmlElement:
     def generateAttribs(self):pass
     def attachParams(self):pass
 
-@multimethod(object, basestr, basestr)
+@multimethod(object, basestring, basestring)
 def getFull(self, dst, src):
     etree.SubElement(self.element, dst).text = self.data.has_key(src) and self.data[src] or ''
 
@@ -111,7 +112,7 @@ def getFull(self, dst):
     for key in dst:
         getFull(self, key, dst[key])
 
-@multimethod(object, basestr, basestr)
+@multimethod(object, basestring, basestring)
 def getFullIfHas(self, dst, src):
     if src and src != '' and self.data.has_key(src):
         getFull(self, dst, src)
@@ -126,9 +127,15 @@ def getFullIfHas(self, dst):
     for key in dst:
         getFullIfHas(self, key, dst[key])
 
-@multimethod(object, basestr, basestr)
+@multimethod(object, basestring, basestring)
 def getSerial(self, dst, src):
-    etree.SubElement(self.element, dst).text = self.data.has_key[src] and join_list(filter(lambda a: a!='', re.split('[\ \n\t]+', self.data[src])[:-1]), ' ') or ''
+    if not self.data.has_key(src):
+        etree.SubElement(self.element, dst).text = ''
+    elif isinstance(self.data[src], basestring):
+        etree.SubElement(self.element, dst).text = join_list(filter(lambda a: a!='', re.split('[\ \n\t]+', self.data[src])[:-1]), ' ')
+    else:
+        raise Exception("getSerial not support {0}".format(self.data[src].__class__))
+                        
     
 @multimethod(object, list)
 def getSerial(self, dst):
@@ -140,9 +147,14 @@ def getSerial(self, dst):
     for key in dst:
         getSerial(self, key, dst[key])
 
-@multimethod(object, basestr, basestr)
+@multimethod(object, basestring, basestring)
 def getNumber(self, dst, src):
-    etree.SubElement(self.element, dst).text = self.data.has_key[src] and join_list(filter(lambda a: a!='', re.split('[\ \n\t]+', self.data[src])[-1]), ' ') or ''
+    if not self.data.has_key(src):
+        etree.SubElement(self.element, dst).text = ''
+    elif isinstance(self.data[src], basestring):
+        etree.SubElement(self.element, dst).text = re.split('[\ \n\t]+', self.data[src])[-1]
+    else:
+        raise Exception("getSerial not support {0}".format(self.data[src].__class__))
 
 @multimethod(object, list)
 def getNumber(self, dst):
@@ -154,11 +166,11 @@ def getNumber(self, dst):
     for key in dst:
         getNumber(self, key, dst[key])
 
-@multimethod(object, basestr, basestr)
+@multimethod(object, basestring, basestring)
 def getDecimal(self, dst, src):
     if not self.data.has_key(src):
         etree.SubElement(self.element, dst).text = '0'
-    elif isinstance(self.data[src], basestr):
+    elif isinstance(self.data[src], basestring):
         etree.SubElement(self.element, dst).text = join_list(re.split('[^0-9]+', self.data[src]), '')
     elif isinstance(self.data[src], (int, float, decimal.Decimal)):
         etree.SubElement(self.element, dst).text = self.data[src].__str__()
@@ -175,11 +187,11 @@ def getDecimal(self, dst):
     for key in dst:
         getDecimal(self, key, dst[key])
 
-@multimethod(object, basestr, basestr)
+@multimethod(object, basestring, basestring)
 def getDate(self, dst, src):
-    if not self.data.has_key[src]:
+    if not self.data.has_key(src):
         etree.SubElement(self.element, dst).text = ''
-    elif isinstance(self.data[src], basestr):
+    elif isinstance(self.data[src], basestring):
         etree.SubElement(self.element, dst).text = datetime.date(*map(int, filter(lambda a:a!='', re.split('[^0-9]+', self.data[src])))).isoformat()
     elif isinstance(self.data[src], datetime.date):
         etree.SubElement(self.element, dst).text = self.data[src].isoformat()
@@ -210,7 +222,7 @@ class xmlElementPersondlo(xmlElement):
     def generateElement(self):
         self.element = etree.Element('PERSONDLO')
     def generateAttribs(self):
-        self.element = attrib['op'] = 'I'
+        self.element.attrib['op'] = 'I'
 
     def attachParams(self):
         getFull(self, ['SS'])
