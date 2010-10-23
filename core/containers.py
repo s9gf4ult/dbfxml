@@ -86,13 +86,19 @@ class xmlPrescriptions(xmlGetter):
 
 class xmlElement:
     def __init__(self, eltdict):
+        self.data = eltdict
         self.generateElement()
         self.generateAttribs()
-        self.attachParams(eltdict)
+        self.attachParams()
 
     def generateElement(self):pass
     def generateAttribs(self):pass
-    def attachParams(self, eltdict):pass
+    def attachParams(self):pass
+
+    def copyTag(self, dst, src = None):
+        if not src:
+            src = dst
+        etree.SubElement(self.element, dst).text = self.data.has_key(src) and self.data[src]
 
 class xmlElementPrescriptions(xmlElement):
     def generateElement(self):
@@ -106,6 +112,24 @@ class xmlElementPersondlo(xmlElement):
         self.element = etree.Element('PERSONDLO')
     def generateAttribs(self):
         self.element = attrib['op'] = 'I'
+
+    def attachParams(self):
+        self.getFull('SS')
+        self.getSerial('S_POL', 'SN_POL')
+        self.getNumber('N_POL', 'SN_POL')
+        self.getFull(['FAM', 'IM', 'OT', 'W'])
+        self.getDate('DR')
+        self.getDecimal('C_KAT')
+        self.getSerial('S_DOC', 'SN_DOC')
+        self.getNumber('N_DOC', 'SN_DOC')
+        self.getDecimal('C_DOC')
+        self.getDecimal('OKATO_OMS')
+        self.getFull('QM_OGRN')
+        self.getDecimal('OKATO_REG')
+        self.getFullIfHas('D_TYPE')
+        
+        
+        
         
 
 
