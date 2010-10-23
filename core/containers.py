@@ -3,6 +3,8 @@ from lxml import etree
 import datetime
 import time
 from uuid import uuid1
+from common_helpers import *
+import re
 
 
 class mainContainer:
@@ -95,10 +97,107 @@ class xmlElement:
     def generateAttribs(self):pass
     def attachParams(self):pass
 
-    def copyTag(self, dst, src = None):
-        if not src:
-            src = dst
-        etree.SubElement(self.element, dst).text = self.data.has_key(src) and self.data[src]
+@multimethod(object, basestr, basestr)
+def getFull(self, dst, src):
+    etree.SubElement(self.element, dst).text = self.data.has_key(src) and self.data[src] or ''
+
+@multimethod(object, list)
+def getFull(self, dst):
+    for dd in dst:
+        getFull(self, dd, dd)
+
+@multimethod(object, dict)
+def getFull(self, dst):
+    for key in dst:
+        getFull(self, key, dst[key])
+
+@multimethod(object, basestr, basestr)
+def getFullIfHas(self, dst, src):
+    if src and src != '' and self.data.has_key(src):
+        getFull(self, dst, src)
+
+@multimethod(object, list)
+def getFullIfHas(self, dst):
+    for dd in dst:
+        getFullIfHas(self, dd, dd)
+
+@multimethod(object, dict)
+def getFullIfHas(self, dst):
+    for key in dst:
+        getFullIfHas(self, key, dst[key])
+
+@multimethod(object, basestr, basestr)
+def getSerial(self, dst, src):
+    etree.SubElement(self.element, dst).text = self.data.has_key[src] and join_list(filter(lambda a: a!='', re.split('[\ \n\t]+', self.data[src])[:-1]), ' ') or ''
+    
+@multimethod(object, list)
+def getSerial(self, dst):
+    for dd in dst:
+        getSerial(self, dd, dd)
+
+@multimethod(object, dict)
+def getSerial(self, dst):
+    for key in dst:
+        getSerial(self, key, dst[key])
+
+@multimethod(object, basestr, basestr)
+def getNumber(self, dst, src):
+    etree.SubElement(self.element, dst).text = self.data.has_key[src] and join_list(filter(lambda a: a!='', re.split('[\ \n\t]+', self.data[src])[-1]), ' ') or ''
+
+@multimethod(object, list)
+def getNumber(self, dst):
+    for dd in dst:
+        getNumber(self, dd, dd)
+
+@multimethod(object, dict)
+def getNumber(self, dst):
+    for key in dst:
+        getNumber(self, key, dst[key])
+
+@multimethod(object, basestr, basestr)
+def getDecimal(self, dst, src):
+    if not self.data.has_key(src):
+        etree.SubElement(self.element, dst).text = '0'
+    elif isinstance(self.data[src], basestr):
+        etree.SubElement(self.element, dst).text = join_list(re.split('[^0-9]+', self.data[src]), '')
+    elif isinstance(self.data[src], (int, float, decimal.Decimal)):
+        etree.SubElement(self.element, dst).text = self.data[src].__str__()
+    else:
+        raise Exception("getDecimal :: unsupported class {0}".format(self.data[src].__class__))
+
+@multimethod(object, list)
+def getDecimal(self, dst):
+    for dd in dst:
+        getDecimal(self, dd, dd)
+
+@multimethod(object, dict)
+def getDecimal(self, dst):
+    for key in dst:
+        getDecimal(self, key, dst[key])
+
+@multimethod(object, basestr, basestr)
+def getDate(self, dst, src):
+    if not self.data.has_key[src]:
+        etree.SubElement(self.element, dst).text = ''
+    elif isinstance(self.data[src], basestr):
+        etree.SubElement(self.element, dst).text = datetime.date(*map(int, filter(lambda a:a!='', re.split('[^0-9]+', self.data[src])))).isoformat()
+    elif isinstance(self.data[src], datetime.date):
+        etree.SubElement(self.element, dst).text = self.data[src].isoformat()
+    elif isinstance(self.data[src], datetime.datetime):
+        etree.SubElement(self.element, dst).text = datetime.date(self.data[src].year, self.data[src].month, self.data[src].day).isoformat()
+    else:
+        raise Exception("getDate :: unsupported class {0}".format(self.data[src].__class__))
+        
+
+@multimethod(object, list)
+def getDate(self, dst):
+    for dd in dst:
+        getDate(self, dd, dd)
+
+@multimethod(object, dict)
+def getDate(self, dst):
+    for key in dst:
+        getDate(self, key, dst[key])
 
 class xmlElementPrescriptions(xmlElement):
     def generateElement(self):
@@ -114,19 +213,19 @@ class xmlElementPersondlo(xmlElement):
         self.element = attrib['op'] = 'I'
 
     def attachParams(self):
-        self.getFull('SS')
-        self.getSerial('S_POL', 'SN_POL')
-        self.getNumber('N_POL', 'SN_POL')
-        self.getFull(['FAM', 'IM', 'OT', 'W'])
-        self.getDate('DR')
-        self.getDecimal('C_KAT')
-        self.getSerial('S_DOC', 'SN_DOC')
-        self.getNumber('N_DOC', 'SN_DOC')
-        self.getDecimal('C_DOC')
-        self.getDecimal('OKATO_OMS')
-        self.getFull('QM_OGRN')
-        self.getDecimal('OKATO_REG')
-        self.getFullIfHas('D_TYPE')
+        getFull(self, ['SS'])
+        getSerial(self, 'S_POL', 'SN_POL')
+        getNumber(self, 'N_POL', 'SN_POL')
+        getFull(self, ['FAM', 'IM', 'OT', 'W'])
+        getDate(self, ['DR'])
+        getDecimal(self, ['C_KAT'])
+        getSerial(self, 'S_DOC', 'SN_DOC')
+        getNumber(self, 'N_DOC', 'SN_DOC')
+        getDecimal(self, ['C_DOC'])
+        getDecimal(self, ['OKATO_OMS'])
+        getFull(self, ['QM_OGRN'])
+        getDecimal(self, ['OKATO_REG'])
+        getFullIfHas(self, ['D_TYPE'])
         
         
         
