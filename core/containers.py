@@ -112,20 +112,18 @@ def getFull(self, dst):
     for key in dst:
         getFull(self, key, dst[key])
 
-@multimethod(object, basestring, basestring)
-def getFullIfHas(self, dst, src):
-    if src and src != '' and self.data.has_key(src):
-        getFull(self, dst, src)
-
-@multimethod(object, list)
-def getFullIfHas(self, dst):
-    for dd in dst:
-        getFullIfHas(self, dd, dd)
-
-@multimethod(object, dict)
-def getFullIfHas(self, dst):
-    for key in dst:
-        getFullIfHas(self, key, dst[key])
+def executeIfExist(func, self, key1, key2 = None):
+    if isinstance(key1, basestring):
+        if not key2:
+            key2 = key1
+        if self.data.has_key(key2):
+            func(self, key1, key2)
+    elif isinstance(key1, list):
+        for k in key1:
+            executeIfExist(func, self, k, k)
+    elif isinstance(key1, dict):
+        for k in key1:
+            executeIfExist(func, self, k, key1[1])
 
 @multimethod(object, basestring, basestring)
 def getSerial(self, dst, src):
@@ -168,8 +166,8 @@ def getNumber(self, dst):
 
 @multimethod(object, basestring, basestring)
 def getDecimal(self, dst, src):
-    if not self.data.has_key(src):
-        etree.SubElement(self.element, dst).text = '0'
+    if (not self.data.has_key(src)) or re.match('^[\ \t\n]*$', self.data[src]):
+        etree.SubElement(self.element, dst).text = ''
     elif isinstance(self.data[src], basestring):
         etree.SubElement(self.element, dst).text = join_list(re.split('[^0-9]+', self.data[src]), '')
     elif isinstance(self.data[src], (int, float, decimal.Decimal)):
@@ -211,13 +209,101 @@ def getDate(self, dst):
     for key in dst:
         getDate(self, key, dst[key])
 
+@multimethod(object, basestring, basestring)
+def getDateTime(self, dst, src):
+    if not self.data.has_key(src):
+        etree.SubElement(self.element, dst).text = ''
+    elif isinstance(self.data[src], basestring):
+        etree.SubElement(self.element, dst).text = datetime.datetime(*map(int, filter(lambda a:a!='', re.split('[^0-9]+', self.data[src])))).isoformat()
+    elif isinstance(self.data[src], datetime.datetime):
+        etree.SubElement(self.element, dst).text = self.data[src].isoformat()
+    elif isinstance(self.data[src], datetime.date):
+        d = self.data[src]
+        etree.SubElement(self.element, dst).text = datetime.datetime(d.year, d.month, d.day).isoformat()
+    else:
+        raise Exception("getDateTime not supported clsss {0}".format(self.data[src].__class__))
+
+@multimethod(object, list)
+def getDateTime(self, dst):
+    for dd in dst:
+        getDateTime(self, dd, dd)
+
+@multimethod(object, dict)
+def getDateTime(self, dst):
+    for key in dst:
+        getDateTime(self, key, dst[key])
+
+@multimethod(object, basestring, basestring)
+def getInteger(self, dst, src):
+    if (not self.data.has_key(src)) or re.match('^[\ \t\n]*$', self.data[src]):
+        etree.SubElement(self.element, dst).text = ''
+    elif isinstance(self.data[src], basestring):
+        etree.SubElement(self.element, dst).text = int(join_list(re.findall('[0-9]+', self.data[src]), '')).__str__()
+    elif isinstance(self.data[src], int):
+        etree.SubElement(self.element, dst).text = self.data[src].__str__()
+    elif isinstance(self.data[src], (decimal.Decimal, float)):
+        etree.SubElement(self.element, dst).text = self.data[src].__trunc__().__str__()
+    else:
+        raise Exception("getInteger not suppports class {0}".format(self.data[src].__class__))
+
+@multimethod(object,list)
+def getInteger(self, dst):
+    for dd in dst:
+        getInteger(self, dd ,dd)
+
+@multimethod(object, dict)
+def getInteger(self, dst):
+    for key in dst:
+        getInteger(key, dst[key])
+
+@multimethod(object, basestring, basestring)
+def getPRLR(self, dst, src):
+    if not self.data.has_key(src):
+        raise Exception("get PRLR :: key {0} must be included".format(src))
+    elif isinstance(self.data[src], int):
+        etree.SubElement(self.element, dst).text = self.data[src] >= 0 and self.data[src] <= 50 and '1' or '2'
+    elif isinstance(self.data[src], basestring):
+        self.data[src] = int(self.data[src])
+        getPRLR(self, dst, src)
+    else:
+        raise Exception("getPRLR :: not supported class {0}".format(self.data[src].__class__))
+
 class xmlElementPrescriptions(xmlElement):
     def generateElement(self):
         self.element = etree.Element('PHARMACYRECIPE')
     def generateAttribs(self):
         self.element.attrib['op'] = 'I'
 
-
+    def attachParams(self):
+        getDateTime(self, ['DATE_VR'])
+        getFull(self, ['C_OGRN'])
+        executeIfExist(getFull, self, ['MCOD'])
+        getSerial(self, 'V_C_OGRN', 'PCOD')
+        getNumber(self, ['PCOD'])
+        getFull(self, ['SS', 'DS'])
+        getSerial(self, 'S_LR', 'SN_LR')
+        getNumber(self, 'N_LR', 'SN_LR')
+        getDecimal(self, ['C_FINL'])
+        getPRLR(self, 'PR_LR', 'PR_LR')
+        executeIfExist(getDateTime, self, ['DATE_OTP'])
+        executeIfExist(getDecimal, self, ['KO_ALL', 'PRICE', 'P_KEK'] )
+        etree.SubElement(self.element, 'Delayed_Service').text = '0'
+        getSerial(self, 'P_OGRN', 'A_COD')
+        getNumber(self, ['A_COD'])
+        getDecimal(self, ['C_KAT'])
+        executeIfExist(getDecimal, self, ['C_KATL'])
+        getDecimal(self, ['C_PFS'])
+        executeIfExist(getDecimal, self, ['PR_REG', 'NOMK_LS', 'C_TRN'])
+        etree.SubElement(self.element, 'DATE_BP').text = '1900-01-01'
+        executeIfExist(getFull, self, ['D_TYPE'])
+        etree.SubElement(self.element, 'RecipeGUID').text = "{{{0}}}".format(uuid1().__str__().upper())
+        etree.SubElement(self.element, 'NumExport').text = '0'
+        getDateTime(self, ['DATE_OBR'])
+        executeIfExist(getDecimal, self, ['OKATO_REG', 'DOZ_ME', 'SL_ALL', 'TYPE_SCHET'])
+        getFull(self, ['FO_OGRN'])
+        
+        
+        
 class xmlElementPersondlo(xmlElement):
     def generateElement(self):
         self.element = etree.Element('PERSONDLO')
@@ -237,7 +323,7 @@ class xmlElementPersondlo(xmlElement):
         getDecimal(self, ['OKATO_OMS'])
         getFull(self, ['QM_OGRN'])
         getDecimal(self, ['OKATO_REG'])
-        getFullIfHas(self, ['D_TYPE'])
+        executeIfExist(getFull, self, ['D_TYPE'])
         
         
         
