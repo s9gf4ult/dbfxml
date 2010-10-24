@@ -41,10 +41,10 @@ class mainProcessor:
             self.processContainer(cont["meta$id"])
         return self
 
-    def processContainer(cont):
+    def processContainer(self, cont):
         contname = self.sq_connection.execute("select name from meta$containers where meta$id = ?", (cont,)).fetchall()[0][0]
         output = self.sq_connection.execute("select output from meta$containers where meta$id = ?", (cont,)).fetchall()[0][0]
-        continstance = eval("{0}({1})".format(contname, output))
+        continstance = eval("{0}('{1}')".format(contname, output))
         continstance.prepare(self._generateDictForContainer(cont))
         continstance.store()
         core.logger("container {0} processed".format(contname))

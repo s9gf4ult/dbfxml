@@ -12,12 +12,18 @@ import decimal
 import re
 
 logger = None
+verbose = None
+
+def verboseLogger(mess):
+    if verbose:
+        logger(mess)
 
 def defaultlog(a):
     print(a)
           
-def initcore(logfun = defaultlog):
-    global logger
+def initcore(logfun = defaultlog, verbosef = False):
+    global logger, verbose
+    verbose = verbosef
     logger = logfun
     import sys
     reload(sys)

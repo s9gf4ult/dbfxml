@@ -6,6 +6,7 @@ import time
 from uuid import uuid1
 from common_helpers import *
 import re
+import core
 
 
 class mainContainer:
@@ -13,6 +14,7 @@ class mainContainer:
         self.out = out
         self.encoding = encoding
         self.element = etree.Element('container')
+        core.verboseLogger("Container created")
 
     def prepare(self, paramsDict):
         self.generateTemplate()
@@ -51,7 +53,7 @@ class dloContainer(mainContainer):
         dcs = self.element.find('DATAMAIN').find('DOCUMENTS')
         dcs.append(self.getPersondlo(params["persondlo"]))
         dcs.append(self.getPrescriptions(params["prescriptions"]))
-        self.generateChsm()
+        #self.generateChsm()
         return self
     
     def getPersondlo(self, iterator):
@@ -62,13 +64,14 @@ class dloContainer(mainContainer):
     def getPrescriptions(self, iterator):
         presc = xmlPrescriptions('PHARMACYRECIPE_DOC', iterator)
         presc.iterate()
-        return pers.element
+        return presc.element
     
 
 class xmlGetter:
     def __init__(self, name, iterator):
         self.element = etree.Element(name)
         self.iterator = iterator
+        core.verboseLogger("xmlGetter created")
 
     def iterate(self):
         for elt in self.iterator:
@@ -93,14 +96,28 @@ class xmlElement:
         self.generateElement()
         self.generateAttribs()
         self.attachParams()
+        core.verboseLogger("xmlElement created")
 
     def generateElement(self):pass
     def generateAttribs(self):pass
     def attachParams(self):pass
 
+def logIt(name, self, dst, src):
+    if self.data.has_key(src):
+        core.verboseLogger("{0}:: value {1} was transfered to {2} and attached to {3} tag".format(name,
+                                                                                                  self.data[src],
+                                                                                                  self.element.find(dst).text,
+                                                                                                  self.element.find(dst).tag))
+    else:
+        core.verboseLogger("{0}:: there is not key {1} to attach to {2} tag".format(name,
+                                                                                    src,
+                                                                                    dst))
+                                                                                                  
+
 @multimethod(object, basestring, basestring)
 def getFull(self, dst, src):
     etree.SubElement(self.element, dst).text = self.data.has_key(src) and self.data[src] or ''
+    logIt("getFull", self, dst, src)
 
 @multimethod(object, list)
 def getFull(self, dst):
@@ -133,6 +150,7 @@ def getSerial(self, dst, src):
         etree.SubElement(self.element, dst).text = join_list(filter(lambda a: a!='', re.split('[\ \n\t]+', self.data[src])[:-1]), ' ')
     else:
         raise Exception("getSerial not support {0}".format(self.data[src].__class__))
+    logIt("getSerial", self, dst, src)
                         
     
 @multimethod(object, list)
@@ -153,6 +171,7 @@ def getNumber(self, dst, src):
         etree.SubElement(self.element, dst).text = re.split('[\ \n\t]+', self.data[src])[-1]
     else:
         raise Exception("getSerial not support {0}".format(self.data[src].__class__))
+    logIt("getNumber", self, dst, src)
 
 @multimethod(object, list)
 def getNumber(self, dst):
@@ -166,14 +185,19 @@ def getNumber(self, dst):
 
 @multimethod(object, basestring, basestring)
 def getDecimal(self, dst, src):
-    if (not self.data.has_key(src)) or re.match('^[\ \t\n]*$', self.data[src]):
+    if (not self.data.has_key(src)):
         etree.SubElement(self.element, dst).text = ''
     elif isinstance(self.data[src], basestring):
+        if re.match('^[\ \t\n]*$', self.data[src]):
+            del self.data[src]
+            getDecimal(self, dst, src)
+            return None
         etree.SubElement(self.element, dst).text = join_list(re.split('[^0-9]+', self.data[src]), '')
     elif isinstance(self.data[src], (int, float, decimal.Decimal)):
         etree.SubElement(self.element, dst).text = self.data[src].__str__()
     else:
         raise Exception("getDecimal :: unsupported class {0}".format(self.data[src].__class__))
+    logIt("getDecimal", self, dst, src)
 
 @multimethod(object, list)
 def getDecimal(self, dst):
@@ -197,7 +221,7 @@ def getDate(self, dst, src):
         etree.SubElement(self.element, dst).text = datetime.date(self.data[src].year, self.data[src].month, self.data[src].day).isoformat()
     else:
         raise Exception("getDate :: unsupported class {0}".format(self.data[src].__class__))
-        
+    logIt("getDate", self, dst ,src)
 
 @multimethod(object, list)
 def getDate(self, dst):
@@ -222,6 +246,7 @@ def getDateTime(self, dst, src):
         etree.SubElement(self.element, dst).text = datetime.datetime(d.year, d.month, d.day).isoformat()
     else:
         raise Exception("getDateTime not supported clsss {0}".format(self.data[src].__class__))
+    logIt("getDateTime", self, dst ,src)
 
 @multimethod(object, list)
 def getDateTime(self, dst):
@@ -235,9 +260,13 @@ def getDateTime(self, dst):
 
 @multimethod(object, basestring, basestring)
 def getInteger(self, dst, src):
-    if (not self.data.has_key(src)) or re.match('^[\ \t\n]*$', self.data[src]):
+    if (not self.data.has_key(src)):
         etree.SubElement(self.element, dst).text = ''
     elif isinstance(self.data[src], basestring):
+        if re.match('^[\ \t\n]*$', self.data[src]):
+            del self.data[src]
+            getInteger(self, dst, src)
+            return None
         etree.SubElement(self.element, dst).text = int(join_list(re.findall('[0-9]+', self.data[src]), '')).__str__()
     elif isinstance(self.data[src], int):
         etree.SubElement(self.element, dst).text = self.data[src].__str__()
@@ -245,6 +274,7 @@ def getInteger(self, dst, src):
         etree.SubElement(self.element, dst).text = self.data[src].__trunc__().__str__()
     else:
         raise Exception("getInteger not suppports class {0}".format(self.data[src].__class__))
+    logIt("getInteger", self, dst, src)
 
 @multimethod(object,list)
 def getInteger(self, dst):
@@ -267,6 +297,7 @@ def getPRLR(self, dst, src):
         getPRLR(self, dst, src)
     else:
         raise Exception("getPRLR :: not supported class {0}".format(self.data[src].__class__))
+    logIt('getPRLR', self, dst, src)
 
 class xmlElementPrescriptions(xmlElement):
     def generateElement(self):
@@ -280,10 +311,15 @@ class xmlElementPrescriptions(xmlElement):
         executeIfExist(getFull, self, ['MCOD'])
         getSerial(self, 'V_C_OGRN', 'PCOD')
         getNumber(self, ['PCOD'])
-        getFull(self, ['SS', 'DS'])
+        getFull(self, ['SS'])
+        executeIfExist(getFull, self, ['DS'])
         getSerial(self, 'S_LR', 'SN_LR')
         getNumber(self, 'N_LR', 'SN_LR')
+        executeIfExist(getDecimal, self, ['C_MNN'])
         getDecimal(self, ['C_FINL'])
+        executeIfExist(getFull, self, ['DOZ_LS'])
+        executeIfExist(getDecimal, self, ['KV_ALL'])
+        executeIfExist(getInteger, self, ['SR_DAY'])
         getPRLR(self, 'PR_LR', 'PR_LR')
         executeIfExist(getDateTime, self, ['DATE_OTP'])
         executeIfExist(getDecimal, self, ['KO_ALL', 'PRICE', 'P_KEK'] )
@@ -324,261 +360,3 @@ class xmlElementPersondlo(xmlElement):
         getFull(self, ['QM_OGRN'])
         getDecimal(self, ['OKATO_REG'])
         executeIfExist(getFull, self, ['D_TYPE'])
-        
-        
-        
-        
-
-
-
-
-
-
-
-
-
-
-
-
-
-def mapTransformerToContainer(trans):
-    classes = {transformer.perstransform:personsxml,
-               transformer.rcptransformer:prescxml
-               }
-    return classes[trans]
-    
-
-def makeXmlmk(trans, classtype = None):
-    if classtype == None:
-        classtype = mapTransformerToContainer(trans.__class__)
-    ret = classtype()
-    ret._local_init(trans)
-    ret.fetchTable()
-    return ret
-
-class xmlIterator:
-    def __init__(self, trans, classtype = None, max_count = 100000):
-        if classtype == None:
-            classtype = mapTransformerToContainer(trans.__class__)
-        declare_type(transformer.transformer, trans)
-        self.transformer = trans
-        self.max_count = max_count
-        self.xmlmk_class = classtype
-
-    def __iter__(self):
-        self.cursor = self.transformer.sq_connection.execute("select * from {0}".format(self.transformer.dst))
-        return self
-
-    def next(self):
-        ret = self.xmlmk_class()
-        ret._local_init(self.transformer)
-        iterator = sql_helpers.selectHashIterator(self.cursor).__iter__()
-        got = 0
-        while True:
-               record = iterator.next()
-               ret.insertRecord(record)
-               got += 1
-               if got >= self.max_count:
-                   break
-        return ret
-                   
-        
-class xmlmk(etree.ElementBase):
-    def _local_init(self, trans):
-        declare_type(transformer.transformer, trans)
-        self.sq_connection = trans.sq_connection
-        self.table = trans.dst
-        
-    def fetchTable(self):
-        if not sql_helpers.isTableAre(self.sq_connection, self.table):
-            raise Exception("{0}.{1}: table {2} does not exists in the database".format(self.__class__.__name__, __name__, self.table))
-        self.tag = self.table
-        for rec in sql_helpers.selectHashIterator(self.sq_connection.execute('select * from {0}'.format(self.table))):
-            self.insertRecord(rec)
-            
-    def insertRecord(self, rec, name = 'record'):
-        record = etree.Element(name)
-        for field in rec:
-            if field.lower() != 'id' and field.lower() != 'ref_id' and isinstance(rec[field], basestring):
-                etree.SubElement(record, field).text = rec[field]
-                self.append(record)
-        return record
-            
-class personsxml(xmlmk):
-    def insertRecord(self, rec, name = 'PERSONDLO'):
-        rec = xmlmk.insertRecord(self, rec, name = name)
-        rec.attrib['op'] = 'I'
-
-class prescxml(xmlmk):
-    def insertRecord(self, rec, name = 'PHARMACYRECIPE'):
-        xmlmk.insertRecord(self, rec, name = name)
-    
-# -*- coding: utf-8 -*-
-
-
-class xmltemplate:
-    table_root = None
-    
-    def __init__(self, filename):
-        if not os.path.exists(filename):
-            raise Exception("file {0} does not exists".format(filename))
-        self.xml = etree.parse(filename).getroot()
-        self.sources = []
-
-    def insertXmlTable(self, xmltable):
-        declare_type(xml_table.xmlmk, xmltable)
-    
-
-    def store(self, filename, encoding = 'utf-8'):
-        with open(filename, 'w') as fout:
-            fout.write(etree.tostring(self.xml, pretty_print = True, encoding = encoding, xml_declaration = True))
-        
-        
-class rcpcontainer(xmltemplate):
-    def __init__(self, filename):
-        xmltemplate.__init__(self, filename)
-        tt = time.localtime(time.time())
-        self.xml.find('CREATE_TIME').text = datetime.datetime(tt.tm_year, tt.tm_mon, tt.tm_mday, tt.tm_hour, tt.tm_min, tt.tm_sec).isoformat()
-        self.xml.find('SENDINFO').find('SEND_GUID').text = "{{{0}}}".format(uuid.uuid1().__str__().upper())
-        for el in xrange(0, self.xml.find('DATAMAIN').__len__()):
-            del self.xml.find('DATAMAIN')[-1] # по удаляем все из дерева чигабуга
-        
-    def insertXmlTable(self, xmltable):
-        xmltemplate.insertXmlTable(self, xmltable)
-        self.xml.find('DATAMAIN').append(xmltable)
-        
-        
-# -*- coding: utf-8 -*-
-
-
-class transformer:
-    """common interface for conversion tables"""
-
-    necessary_fields = None
-    
-    def convertHash(self, hashtable):
-        pass
-    
-    def __init__(self, imp, src, dst):
-        declare_type(importer.importer, imp)
-        self.sq_connection = imp.getSqliteConnection()
-        self.src = src
-        self.dst = dst
-
-    def createDstTable(self):
-        fields = self.convertHash(sql_helpers.selectHashIterator(self.sq_connection.execute("select * from {0}".format(self.src))).next())
-        for key in fields:
-            fields[key] = "varchar"
-        fields["ref_id"] = "integer"
-            
-        sql_helpers.makeTableIfNotExists(self.sq_connection, self.dst, fields, ["foreign key (ref_id) references {0}(id) on delete cascade".format(self.src), "unique(ref_id)"])
-    
-    def convertTable(self):
-        self._checkForNecessaryFields()
-        if sql_helpers.isTableAre(self.sq_connection, self.dst):
-            dst_id = sql_helpers.getIdForTable(self.sq_connection, self.dst)
-        else:
-            dst_id = 1
-            self.createDstTable()
-            
-        try:
-            for rec in sql_helpers.selectHashIterator(self.sq_connection.execute("select * from {0}".format(self.src))):
-                try:
-                    sql_helpers.insertInto(self.sq_connection, self.dst, self._processAndAddIDReferences(dst_id, rec))
-                except:
-                    self.sq_connection.execute("delete from {0} where ref_id = ?".format(self.dst), (rec["id"],))
-                    sql_helpers.insertInto(self.sq_connection, self.dst, self._processAndAddIDReferences(dst_id, rec))
-                    
-                dst_id += 1
-        except:
-            self.sq_connection.rollback()
-            raise
-        else:
-            self.sq_connection.commit()
-
-    def _processAndAddIDReferences(self, dst_id, rec):
-        drec = self.convertHash(rec)
-        drec["id"] = dst_id
-        drec["ref_id"] = rec["id"]
-        return drec
-
-    def _checkForNecessaryFields(self):
-        if self.necessary_fields and self.necessary_fields.__len__() > 0:
-            fields = map(lambda a: a[0].lower() , self.sq_connection.execute("select * from {0}".format(self.src)).description)
-            for tf in self.necessary_fields:
-                if not tf.lower() in fields:
-                    raise Exception("table {0}, has no field {1}".format(self.src, tf))
-
-def datetimeIsoFormat(ddt):
-    if ddt.__class__ == datetime.date:
-        return datetime.datetime(ddt.year, ddt.month, ddt.day).isoformat()
-    elif ddt.__class__ == datetime.datetime:
-        return ddt.isoformat()
-    elif ddt.__class__ == str or ddt.__class__ == unicode:
-        return datetime.datetime(*map(int, re.split("[-T:\.\/\\]+", ddt))).isoformat()
-    elif ddt == None:
-        return None
-    else:
-        raise Exception("Date in some strange format {0}".format(ddt.__class__))
-
-
-def setDefault(deflt, val = None):
-    if val.__class__ == str or val.__class__ == unicode:
-        return (not re.match('^\ *$', val)) and val or deflt
-    return val and val.__str__() or deflt
-
-def splitWords(string):
-    return string and filter(lambda a: a != '', re.split('\ +', string.__str__()))
-
-class rcptransformer(transformer):
-    def convertHash(self, hinst):
-        ret = {}
-        hin = {}
-        for key in hinst:
-            hin[key.upper()] = hinst[key]
-        for key in ['C_OGRN', 'MCOD', 'SS', 'DS', 'C_FINL', 'KO_ALL', 'P_KEK', 'C_KAT', 'C_KATL', 'C_PFS', 'NOMK_LS', 'D_TYPE', 'DOZ_ME', 'SL_ALL', 'TYPE_SCHET', 'FO_OGRN']:
-            ret[key] = hin.has_key(key) and  hin[key] and hin[key].__str__()
-                
-        for key in ['C_KAT', 'C_PFS', 'DOZ_ME', 'SL_ALL', 'TYPE_SCHET']:
-            ret[key] = setDefault('0', ret[key])
-        ret['DATE_VR'] = datetimeIsoFormat(hin['DATE_VR'])
-        pcod = hin['PCOD'].__str__()
-        ret['V_C_OGRN'] = pcod[0:13]
-        ret['PCOD'] = pcod[13:pcod.__len__()]
-        snlr = splitWords(hin['SN_LR'])
-        ret['S_LR'] = snlr and snlr.__len__() >= 1 and snlr[0]
-        ret['N_LR'] = snlr and snlr.__len__() >= 1 and snlr[-1]
-        #PR_LR action range !
-        prlr = int(hin['PR_LR'])
-        ret['PR_LR'] = (0 <= prlr <= 50) and '2' or '1' # доподлинно неизвестно так ли это 
-        ret['DATE_OTP'] = datetimeIsoFormat(hin['DATE_OTP'])
-        ret['Delayed_Service'] = '0'
-        acod = hin['A_COD'].__str__()
-        ret['P_OGRN'] = acod[0:13]
-        ret['A_COD'] = acod[13: acod.__len__()]
-        ret['DATE_BP'] = '1900-01-01'
-        ret['RecipeGUID'] = u'{{{0}}}'.format(uuid.uuid1().__str__().upper())
-        ret['NumExport'] = '0'
-        ret['DATE_OBR'] = datetimeIsoFormat(hin['DATE_OBR'])
-        return ret
-
-class perstransform(transformer):
-    def convertHash(self, hinst):
-        ret = {}
-        hin = {}
-        for key in hinst:
-            hin[key.upper()] = hinst[key]
-        for key in ['SS', 'FAM', 'IM', 'OT', 'W', 'C_KAT', 'C_DOC', 'OKATO_OMS', 'QM_OGRN', 'OKATO_REG', 'D_TYPE']:
-            ret[key] = hin.has_key(key) and  hin[key] and hin[key].__str__()
-
-        for key in ['C_DOC', 'OKATO_OMS']:
-            ret[key] = setDefault('0', ret[key])
-
-        snpol = splitWords(hin['SN_POL'])
-        ret['S_POL'] = snpol and snpol.__len__() >= 1 and snpol[0]
-        ret['N_POL'] = snpol and snpol.__len__() >= 1 and snpol[-1]
-        ret['DR'] = hin['DR'] and hin['DR'].__str__().replace('/', '-')
-        sndoc = splitWords(hin['SN_DOC'])
-        ret['S_DOC'] = setDefault('NS', sndoc and sndoc.__len__() >= 1 and sndoc[0])
-        ret['N_DOC'] = setDefault('00000000', sndoc and sndoc.__len__() >= 1 and sndoc[1])
-        return ret
