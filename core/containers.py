@@ -7,6 +7,7 @@ from uuid import uuid1
 from common_helpers import *
 import re
 import core
+import hashlib
 
 
 class mainContainer:
@@ -53,8 +54,12 @@ class dloContainer(mainContainer):
         dcs = self.element.find('DATAMAIN').find('DOCUMENTS')
         dcs.append(self.getPersondlo(params["persondlo"]))
         dcs.append(self.getPrescriptions(params["prescriptions"]))
-        #self.generateChsm()
+        self.generateChsm()
         return self
+    
+    def generateChsm(self):
+        chsm = hashlib.sha1(join_list(re.findall('[^\ \t\n]+', etree.tostring(self.element, pretty_print = False, xml_declaration = False, encoding = self.encoding)), '')[1:-1])
+        self.element.attrib['chsm'] = chsm.hexdigest().upper()
     
     def getPersondlo(self, iterator):
         pers = xmlPersondlo('PERSONDLO_DOC', iterator)

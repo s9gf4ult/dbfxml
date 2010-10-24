@@ -31,7 +31,7 @@ class mainProcessor:
         self.sq_connection.createTableIfNotExists("meta$container_records", {"table_id" : "int not null",
                                                                              "record_id" : "int not null",
                                                                              "container_id" : "int not null",
-                                                                             "param_name" : "varchar not null"}, # FIXME: надо сделать обработку случая, когда на один param_name может приходится несколько table_id для этого надо поменять формат словаря для addContainer а еще добавить итератор ссумирующий итераторы чтобы передать методу prepare контейнера итератор выбирающий из нескольлких таблиц
+                                                                             "param_name" : "varchar not null"}, 
                                                   table_type = 'meta',
                                                   constraints = "foreign key (table_id) references meta$tables(meta$id) on delete cascade, foreign key (container_id) references meta$containers(meta$id) on delete cascade, unique(table_id, record_id, container_id, param_name)")
                                                                              
@@ -80,6 +80,18 @@ class mainProcessor:
             self.sq_connection.commit()
             core.logger("container {0} added".format(name))
         return self
+
+    def addContainerOrReplace(self, output, name, table_records):
+        try:
+            if self.sq_connection.execute("select * from meta$containers where output = ?", (output,)).fetchall() != []:
+                core.logger("output {0} is already attached to some container, deleting ...".format(output))
+                self.sq_connection.execute("delete from meta$containers where output = ?", (output,))
+            self.addContainer(output, name, table_records)
+        except:
+            self.sq_connection.rollback()
+            raise
+        else:
+            self.sq_connection.commit()
 
     def cleanFilesTable(self):
         try:
