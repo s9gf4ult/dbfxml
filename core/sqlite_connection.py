@@ -58,11 +58,20 @@ class sqliteConnection(sqlite3.Connection):
         else:
             self.commit()
         return self
+
+    def _filter_keywords(self, fields):
+        words = ['create', 'table', 'insert', 'index', 'update', 'delete', 'drop', 'not', 'exists']
+        for key in fields:
+            if key.lower() in words:
+                fields["{0}_".format(key)] = fields[key]
+                del fields[key]
+        return fields
     
     def createTableIfNotExists(self, name, fields, meta_fields = {'meta$id':'primary key not null'}, constraints = None, table_type = 'data'):
         """(name, fields, meta_fields = {'meta$id':'primary key not null'}, constraints = None, table_type = 'data')
         create table with name 'name' and register it in 'meta$fields' and 'meta$tables' if it does not exists"""
-        
+        fields = self._filter_keywords(fields)
+        meta_fields = self._filter_keywords(meta_fields)
         self.execute(u"create table if not exists {0} ({1})".format(name,
                                                                     self._format_table_creator(fields, meta_fields, constraints)))
         core.logger(u"table {0} has been created".format(name))
@@ -71,7 +80,8 @@ class sqliteConnection(sqlite3.Connection):
 
     def createTable(self, name, fields, meta_fields = {'meta$id':'primary key not null'}, constraints = None, table_type = 'data'):
         """same as createTableIfNotExists but will raise exception if table 'name' already exists"""
-        
+        fields = self._filter_keywords(fields)
+        meta_fields = self._filter_keywords(meta_fields)
         self. execute(u"create table {0} ({1})".format(name,
                                                        self._format_table_creator(fields, meta_fields, constraints)))
         core.logger(u"table {0} has been created".format(name))
@@ -115,6 +125,7 @@ class sqliteConnection(sqlite3.Connection):
     def insertInto(self, table_name, values):
         """(table_name, values)insert values into table_name where values is dictionary {key: value}"""
         keys = []
+        values = self._filter_keywords(values)
         for key in values:
             if values[key] != None:
                 keys.append(key)        # соберем ключи для не пустых значений
