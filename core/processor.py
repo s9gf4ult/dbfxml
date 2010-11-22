@@ -272,7 +272,7 @@ class mainProcessor:
 
     def addForProcessingByPattern(self, table_name, directory, pattern = '.*' , flags = 0):
         files = findFilesByRegexp(directory, pattern, flags)
-        if files != []:
+        if files and files != []:
             for file in files:
                 self.addForProcessing(file, table_name)
         
